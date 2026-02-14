@@ -1,0 +1,330 @@
+.app {
+  max-width: 980px;
+  margin: 40px auto;
+  padding: 20px;
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Arial,
+    sans-serif;
+  color: #111;
+}
+
+.startHeader {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.logoBox {
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  border: 1px solid #ddd;
+  background: #f7f7f7;
+}
+
+.title {
+  margin: 0;
+  line-height: 1.1;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  opacity: 0.75;
+}
+
+.card {
+  border: 1px solid #e6e6e6;
+  border-radius: 16px;
+  padding: 18px;
+  background: white;
+}
+
+.sectionTitle {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.steps {
+  margin: 8px 0 0 18px;
+}
+
+.steps li {
+  margin: 6px 0;
+}
+
+.footerNote {
+  margin-top: 14px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.footer {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #eee;
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.navBtn {
+  border: 1px solid #ddd;
+  background: #fff;
+  padding: 10px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.navBtn.active {
+  border-color: #111;
+}
+
+.muted {
+  margin-top: 6px;
+  opacity: 0.75;
+}
+
+.placeholder {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px dashed #ddd;
+  border-radius: 14px;
+  opacity: 0.8;
+}
+.nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.brandLogo {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #ddd;
+  background: #f4f4f4;
+  font-size: 14px;
+}
+
+.brandText {
+  font-size: 18px;
+}
+.navLinks {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.formGrid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 0.7fr 0.7fr;
+  gap: 10px;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 6px;
+  opacity: 0.8;
+}
+
+.field input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  outline: none;
+}
+
+.field input:focus {
+  border-color: #111;
+}
+
+.primaryBtn {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #111;
+  background: #111;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dangerBtn {
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  background: white;
+  cursor: pointer;
+}
+
+.errorBox {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #ffd1d1;
+  background: #fff5f5;
+}
+
+.table {
+  margin-top: 12px;
+  border: 1px solid #eee;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1.6fr 0.9fr 0.6fr 0.6fr;
+  gap: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid #f0f0f0;
+  align-items: center;
+}
+
+.row.head {
+  border-top: none;
+  background: #fafafa;
+  font-weight: 700;
+}
+
+.right {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+  .row {
+    grid-template-columns: 1fr;
+  }
+  .right {
+    justify-content: flex-start;
+  }
+}
+
+.dateWrap {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dateBtn {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  background: #fff;
+  cursor: pointer;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid #eee;
+  margin: 16px 0;
+}
+
+.availability {
+  margin-top: 10px;
+}
+
+.days {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.chip {
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid #ddd;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.chip.active {
+  border-color: #111;
+}
+
+.timeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .timeGrid {
+    grid-template-columns: 1fr;
+  }
+}
+.row.schedule {
+  grid-template-columns: 0.9fr 0.8fr 1.4fr 0.8fr;
+}
+.formStack {
+  margin-top: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  outline: none;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.field textarea:focus {
+  border-color: #111;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.chipTag {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #ddd;
+  background: #fff;
+  font-weight: 600;
+  font-size: 13px;
+}
+.chipTag .remove {
+  margin-left: 6px;
+  opacity: 0.75;
+  cursor: pointer;
+}
