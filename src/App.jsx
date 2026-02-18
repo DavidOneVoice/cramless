@@ -1,24 +1,61 @@
 import { useEffect, useMemo, useState } from "react";
 import { resetState } from "./lib/storage";
 import "./App.css";
-import Summaries from "./pages/Summaries";
+
 import Start from "./pages/Start";
 import Planner from "./pages/Planner";
-import QuizBuilder from "./pages/QuizBuilder";
 import Schedule from "./pages/Schedule";
+import QuizBuilder from "./pages/QuizBuilder";
+import Summaries from "./pages/Summaries";
+import QuizSets from "./pages/QuizSets";
 
 const PAGES = {
   start: { label: "Start", component: Start },
   planner: { label: "Study Planner", component: Planner },
   schedule: { label: "Schedule", component: Schedule },
   quiz: { label: "Quiz Builder", component: QuizBuilder },
+  quizSets: { label: "Quiz Sets", component: QuizSets },
   summaries: { label: "Summaries", component: Summaries },
 };
 
+function normalizeHashKey(rawHash) {
+  // Example rawHash: "#/quizSets?x=1" or "#/quizsets/" etc.
+  const raw = rawHash || "#/start";
+
+  let key = raw.replace(/^#\/?/, ""); // remove leading "#/" or "#"
+  key = key.split("?")[0].trim(); // remove query
+  key = key.replace(/\/+$/, ""); // remove trailing slash(es)
+  const lower = key.toLowerCase();
+
+  // aliases (accept common variations)
+  const ALIASES = {
+    "": "start",
+    start: "start",
+    home: "start",
+
+    planner: "planner",
+
+    schedule: "schedule",
+    timetable: "schedule",
+
+    quiz: "quiz",
+    quizbuilder: "quiz",
+
+    summaries: "summaries",
+    summary: "summaries",
+
+    quizsets: "quizSets",
+    quizset: "quizSets",
+    "quiz-sets": "quizSets",
+    "quiz-set": "quizSets",
+  };
+
+  return ALIASES[lower] || key; // if it's already "quizSets", keep it
+}
+
 function getHashPage() {
-  const raw = window.location.hash || "#/start";
-  const key = raw.replace("#/", "").split("?")[0].trim(); // ✅ IMPORTANT
-  return PAGES[key] ? key : "start";
+  const normalized = normalizeHashKey(window.location.hash);
+  return PAGES[normalized] ? normalized : "start";
 }
 
 export default function App() {
@@ -33,6 +70,8 @@ export default function App() {
   const ActivePage = useMemo(() => PAGES[page].component, [page]);
 
   function go(to) {
+    // set immediately (no waiting for hashchange)
+    setPage(PAGES[to] ? to : "start");
     window.location.hash = `#/${to}`;
   }
 
@@ -88,6 +127,15 @@ export default function App() {
           >
             Quiz Builder
           </button>
+
+          <button
+            className={page === "quizSets" ? "navBtn active" : "navBtn"}
+            onClick={() => go("quizSets")}
+            type="button"
+          >
+            Quiz Sets
+          </button>
+
           <button
             className={page === "summaries" ? "navBtn active" : "navBtn"}
             onClick={() => go("summaries")}

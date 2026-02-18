@@ -78,10 +78,6 @@ export default function QuizBuilderForm({
             Save Quiz Set
           </button>
         </div>
-
-        <p className="footerNote">
-          Your data is saved locally in this browser (no login required).
-        </p>
       </div>
     </div>
   );

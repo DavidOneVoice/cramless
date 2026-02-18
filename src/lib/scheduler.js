@@ -126,13 +126,18 @@ export function generateSchedule({ courses, availability }) {
   });
 
   // Fill slots
+  const totalWeight = courseStats.reduce((sum, c) => sum + c.weight, 0);
+
+  // Fill slots
   const schedule = slots.map((slot) => {
-    // Increase need slightly each round so rotation is stable
+    // Add "credit" each round
     for (const cs of courseStats) cs.need += cs.weight;
 
     courseStats.sort((a, b) => b.need - a.need);
     const chosen = courseStats[0];
-    chosen.need = Math.max(0, chosen.need - 1);
+
+    // ✅ Key change: subtract totalWeight to force rotation
+    chosen.need -= totalWeight;
 
     const daysToExam = Math.max(1, daysBetween(slot.date, chosen.examDate));
 
