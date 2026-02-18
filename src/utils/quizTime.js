@@ -1,5 +1,5 @@
 export function getQuizMinutes(count) {
-  return Math.max(1, Math.ceil(Number(count || 0) / 2));
+  return Math.max(1, Math.ceil(Number(count || 0) * 1.5));
 }
 
 export function formatTime(seconds) {

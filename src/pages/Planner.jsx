@@ -1,21 +1,55 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+
 import { generateSchedule } from "../lib/scheduler";
 import { fromMinutes } from "../lib/time";
 import { loadState, saveState } from "../lib/storage";
 import { makeCourse, validateCourse } from "../lib/courses";
 
+function isoToDate(iso) {
+  if (!iso) return null;
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+function dateToIso(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "";
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function hhmmToDate(hhmm) {
+  const base = new Date();
+  const [h, m] = String(hhmm || "00:00")
+    .split(":")
+    .map(Number);
+  base.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
+  return base;
+}
+
+function dateToHHmm(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "00:00";
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 export default function Planner() {
   const [state, setState] = useState(() => loadState());
 
-  const startTimeRef = useRef(null);
-  const endTimeRef = useRef(null);
-  const examDateRef = useRef(null);
-
   const [name, setName] = useState("");
-  const [examDate, setExamDate] = useState("");
+  const [examDate, setExamDate] = useState(""); // YYYY-MM-DD
   const [workload, setWorkload] = useState(5);
   const [errors, setErrors] = useState([]);
   const [scheduleError, setScheduleError] = useState("");
+
+  // Quiz integration UI state
+  const [takingQuizSetId, setTakingQuizSetId] = useState(null);
+  const [quizError, setQuizError] = useState("");
 
   useEffect(() => {
     saveState(state);
@@ -23,6 +57,7 @@ export default function Planner() {
 
   const courses = useMemo(() => state.courses || [], [state.courses]);
   const schedule = useMemo(() => state.schedule || [], [state.schedule]);
+  const quizSets = useMemo(() => state.quizSets || [], [state.quizSets]);
 
   function addCourse(e) {
     e.preventDefault();
@@ -67,6 +102,7 @@ export default function Planner() {
 
     setState((prev) => ({ ...prev, schedule: result.schedule }));
     setScheduleError("");
+    window.location.hash = "#/schedule";
   }
 
   function handleClearSchedule() {
@@ -74,9 +110,84 @@ export default function Planner() {
     setScheduleError("");
   }
 
+  async function takeQuizFromPlanner(quizSetId, count = 10) {
+    const target = (state.quizSets || []).find((q) => q.id === quizSetId);
+    if (!target) return;
+
+    try {
+      setTakingQuizSetId(quizSetId);
+      setQuizError("");
+
+      const r = await fetch("http://localhost:5050/api/generate-mcqs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: target.title,
+          sourceText: target.sourceText,
+          count,
+          difficulty: "mixed",
+          nonce: crypto.randomUUID(),
+          avoid: (target.promptHistory || target.questions || [])
+            .map((q) => (typeof q === "string" ? q : q.prompt))
+            .filter(Boolean)
+            .slice(0, 40),
+        }),
+      });
+
+      const raw = await r.text();
+      let data = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { error: raw || "Server returned a non-JSON response." };
+      }
+
+      if (!r.ok) {
+        setQuizError(data.error || `AI generation failed (HTTP ${r.status}).`);
+        return;
+      }
+
+      const questions = Array.isArray(data.questions) ? data.questions : [];
+      if (!questions.length) {
+        setQuizError("AI returned no questions. Try uploading more material.");
+        return;
+      }
+
+      const looksValid = questions.every(
+        (q) =>
+          q &&
+          typeof q.prompt === "string" &&
+          Array.isArray(q.options) &&
+          q.options.length === 4 &&
+          typeof q.answer === "string",
+      );
+
+      if (!looksValid) {
+        setQuizError(
+          "AI returned questions in an unexpected format. Try again.",
+        );
+        return;
+      }
+
+      setState((prev) => ({
+        ...prev,
+        quizSets: (prev.quizSets || []).map((set) =>
+          set.id === quizSetId ? { ...set, questions } : set,
+        ),
+        ui: { ...(prev.ui || {}), activeTab: "quiz", activeSetId: quizSetId },
+      }));
+
+      alert("Quiz generated ✅ Open Quiz Builder to take it.");
+    } catch (err) {
+      console.error(err);
+      setQuizError(err?.message || "Failed to generate quiz.");
+    } finally {
+      setTakingQuizSetId(null);
+    }
+  }
+
   return (
     <div>
-      {/* CARD 1: Course Input + Availability */}
       <div className="card">
         <h2 className="sectionTitle">Study Planner</h2>
         <p className="muted">
@@ -96,27 +207,15 @@ export default function Planner() {
 
           <div className="field">
             <label>Exam date</label>
-
-            <div className="dateWrap">
-              <input
-                ref={examDateRef}
-                type="date"
-                value={examDate}
-                onChange={(e) => setExamDate(e.target.value)}
-                onClick={() => examDateRef.current?.showPicker?.()}
-                onFocus={() => examDateRef.current?.showPicker?.()}
-              />
-
-              <button
-                type="button"
-                className="dateBtn"
-                onClick={() => examDateRef.current?.showPicker?.()}
-                aria-label="Open calendar"
-                title="Open calendar"
-              >
-                📅
-              </button>
-            </div>
+            <DatePicker
+              selected={isoToDate(examDate)}
+              onChange={(d) => setExamDate(dateToIso(d))}
+              placeholderText="Select exam date"
+              dateFormat="yyyy-MM-dd"
+              className="input" // optional: match your inputs (or remove)
+              isClearable
+              showPopperArrow={false}
+            />
           </div>
 
           <div className="field">
@@ -126,7 +225,7 @@ export default function Planner() {
               min="1"
               max="10"
               value={workload}
-              onChange={(e) => setWorkload(e.target.value)}
+              onChange={(e) => setWorkload(Number(e.target.value))}
             />
           </div>
 
@@ -181,68 +280,48 @@ export default function Planner() {
           <div className="timeGrid">
             <div className="field">
               <label>Start time</label>
-
-              <div className="dateWrap">
-                <input
-                  ref={startTimeRef}
-                  type="time"
-                  value={state.availability?.startTime || "18:00"}
-                  onChange={(e) =>
-                    setState((prev) => ({
-                      ...prev,
-                      availability: {
-                        ...(prev.availability || {}),
-                        startTime: e.target.value,
-                      },
-                    }))
-                  }
-                  onClick={() => startTimeRef.current?.showPicker?.()}
-                  onFocus={() => startTimeRef.current?.showPicker?.()}
-                />
-
-                <button
-                  type="button"
-                  className="dateBtn"
-                  onClick={() => startTimeRef.current?.showPicker?.()}
-                  aria-label="Open time picker"
-                  title="Open time picker"
-                >
-                  🕒
-                </button>
-              </div>
+              <DatePicker
+                selected={hhmmToDate(state.availability?.startTime || "18:00")}
+                onChange={(d) =>
+                  setState((prev) => ({
+                    ...prev,
+                    availability: {
+                      ...(prev.availability || {}),
+                      startTime: dateToHHmm(d),
+                    },
+                  }))
+                }
+                showTimeSelect
+                showTimeSelectOnly
+                timeIntervals={5}
+                timeCaption="Time"
+                dateFormat="HH:mm"
+                className="input"
+                showPopperArrow={false}
+              />
             </div>
 
             <div className="field">
               <label>End time</label>
-
-              <div className="dateWrap">
-                <input
-                  ref={endTimeRef}
-                  type="time"
-                  value={state.availability?.endTime || "20:00"}
-                  onChange={(e) =>
-                    setState((prev) => ({
-                      ...prev,
-                      availability: {
-                        ...(prev.availability || {}),
-                        endTime: e.target.value,
-                      },
-                    }))
-                  }
-                  onClick={() => endTimeRef.current?.showPicker?.()}
-                  onFocus={() => endTimeRef.current?.showPicker?.()}
-                />
-
-                <button
-                  type="button"
-                  className="dateBtn"
-                  onClick={() => endTimeRef.current?.showPicker?.()}
-                  aria-label="Open time picker"
-                  title="Open time picker"
-                >
-                  🕒
-                </button>
-              </div>
+              <DatePicker
+                selected={hhmmToDate(state.availability?.endTime || "20:00")}
+                onChange={(d) =>
+                  setState((prev) => ({
+                    ...prev,
+                    availability: {
+                      ...(prev.availability || {}),
+                      endTime: dateToHHmm(d),
+                    },
+                  }))
+                }
+                showTimeSelect
+                showTimeSelectOnly
+                timeIntervals={5}
+                timeCaption="Time"
+                dateFormat="HH:mm"
+                className="input"
+                showPopperArrow={false}
+              />
             </div>
 
             <div className="field">
@@ -283,7 +362,6 @@ export default function Planner() {
         )}
       </div>
 
-      {/* CARD 2: Courses Table + Schedule */}
       <div className="card" style={{ marginTop: 14 }}>
         <h3 className="sectionTitle">Your Courses</h3>
 
@@ -295,25 +373,65 @@ export default function Planner() {
               <div>Course</div>
               <div>Exam Date</div>
               <div>Priority</div>
-              <div></div>
+              <div>Actions</div>
             </div>
 
-            {courses.map((c) => (
-              <div className="row" key={c.id}>
-                <div>{c.name}</div>
-                <div>{c.examDate}</div>
-                <div>{c.workload}</div>
-                <div className="right">
-                  <button
-                    className="dangerBtn"
-                    type="button"
-                    onClick={() => removeCourse(c.id)}
-                  >
-                    Remove
-                  </button>
+            {courses.map((c) => {
+              const courseQuizzes = quizSets.filter((q) => q.courseId === c.id);
+
+              return (
+                <div key={c.id} style={{ paddingBottom: 10 }}>
+                  <div className="row">
+                    <div>{c.name}</div>
+                    <div>{c.examDate}</div>
+                    <div>{c.workload}</div>
+
+                    <div className="right">
+                      <button
+                        className="dangerBtn"
+                        type="button"
+                        onClick={() => removeCourse(c.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+
+                  {courseQuizzes.length > 0 && (
+                    <div style={{ marginTop: 10, paddingLeft: 6 }}>
+                      <div style={{ fontWeight: 600, opacity: 0.9 }}>
+                        Linked Quizzes
+                      </div>
+
+                      <div
+                        style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
+                      >
+                        {courseQuizzes.map((q) => (
+                          <button
+                            key={q.id}
+                            className="navBtn"
+                            type="button"
+                            disabled={takingQuizSetId === q.id}
+                            onClick={() => takeQuizFromPlanner(q.id, 10)}
+                            style={{ marginTop: 6 }}
+                          >
+                            {takingQuizSetId === q.id
+                              ? "Generating…"
+                              : `Take Quiz: ${q.title}`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
+          </div>
+        )}
+
+        {quizError && (
+          <div className="errorBox" style={{ marginTop: 12 }}>
+            {quizError}
           </div>
         )}
 
@@ -341,62 +459,7 @@ export default function Planner() {
           >
             Clear Schedule
           </button>
-          <button
-            className="navBtn"
-            type="button"
-            onClick={() => {
-              const schedule = state.schedule || [];
-              if (!schedule.length) return;
-
-              const lines = schedule.map((s) => {
-                const time = `${fromMinutes(s.startMinutes)}–${fromMinutes(s.endMinutes)}`;
-                return `${s.date} | ${time} | ${s.courseName} | ${s.type}`;
-              });
-
-              const text = [
-                "CramLess — Generated Study Schedule",
-                "----------------------------------",
-                ...lines,
-              ].join("\n");
-
-              navigator.clipboard.writeText(text);
-              alert("Schedule copied to clipboard ✅");
-            }}
-          >
-            Export (Copy)
-          </button>
         </div>
-
-        {schedule.length > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <h3 className="sectionTitle">Generated Schedule</h3>
-
-            <div className="table">
-              <div className="row head schedule">
-                <div>Date</div>
-                <div>Time</div>
-                <div>Course</div>
-                <div>Type</div>
-              </div>
-
-              {schedule.map((s, idx) => (
-                <div className="row schedule" key={idx}>
-                  <div>{s.date}</div>
-                  <div>
-                    {fromMinutes(s.startMinutes)}–{fromMinutes(s.endMinutes)}
-                  </div>
-                  <div>{s.courseName}</div>
-                  <div>{s.type}</div>
-                </div>
-              ))}
-            </div>
-
-            <p className="footerNote">
-              The schedule prioritizes higher-priority courses and exams that
-              are closer.
-            </p>
-          </div>
-        )}
 
         <p className="footerNote">
           Tip: Priority helps the scheduler allocate more time to heavier or

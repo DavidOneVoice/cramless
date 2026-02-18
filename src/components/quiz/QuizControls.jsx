@@ -18,7 +18,7 @@ export default function QuizControls({
           value={questionCount}
           onChange={(e) => setQuestionCount(Number(e.target.value))}
         >
-          {[5, 10, 15, 20, 30].map((n) => (
+          {[5, 10, 15, 20, 30, 60].map((n) => (
             <option key={n} value={n}>
               {n}
             </option>

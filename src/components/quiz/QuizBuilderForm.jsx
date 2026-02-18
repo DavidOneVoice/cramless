@@ -7,14 +7,18 @@ export default function QuizBuilderForm({
   error,
   onFileUpload,
   onSave,
+
+  // NEW (for linking)
+  courses = [],
+  selectedCourseId = "",
+  setSelectedCourseId = () => {},
 }) {
   return (
     <div className="card">
       <h2 className="sectionTitle">Quiz Builder</h2>
       <p className="muted">
         Upload your course material and save it as a quiz set. When you click
-        “Take Quiz”, CramLess uses AI to generate high-quality MCQs from your
-        material.
+        “Take Quiz”, CramLess generates high-quality MCQs from your material.
       </p>
 
       <div className="formStack">
@@ -27,6 +31,26 @@ export default function QuizBuilderForm({
           />
         </div>
 
+        {courses.length > 0 && (
+          <div className="field">
+            <label>Link to Course (optional)</label>
+            <select
+              value={selectedCourseId}
+              onChange={(e) => setSelectedCourseId(e.target.value)}
+            >
+              <option value="">— Not linked —</option>
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <p className="footerNote" style={{ marginTop: 6 }}>
+              Linking helps you launch quizzes directly from the Study Planner.
+            </p>
+          </div>
+        )}
+
         <div className="field">
           <label>Upload course material (PDF / DOCX / TXT)</label>
           <input type="file" accept=".pdf,.docx,.txt" onChange={onFileUpload} />
@@ -35,9 +59,6 @@ export default function QuizBuilderForm({
               Selected: <strong>{fileInfo}</strong>
             </p>
           )}
-          <p className="footerNote">
-            Tip: If your PDF is scanned (image-only), we’ll need OCR to read it.
-          </p>
         </div>
 
         <div className="field">

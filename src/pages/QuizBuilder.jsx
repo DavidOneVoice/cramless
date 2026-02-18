@@ -2,10 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { loadState, saveState } from "../lib/storage";
 import { extractTextFromPdf } from "../lib/pdfText";
 import mammoth from "mammoth";
-
 import { useCountdown } from "../hooks/useCountdown";
 import { getQuizMinutes } from "../utils/quizTime";
-
 import QuizBuilderForm from "../components/quiz/QuizBuilderForm";
 import QuizControls from "../components/quiz/QuizControls";
 import QuizSetsTable from "../components/quiz/QuizSetsTable";
@@ -13,23 +11,25 @@ import PracticeMode from "../components/quiz/PracticeMode";
 
 export default function QuizBuilder() {
   const [state, setState] = useState(() => loadState());
-  const quizSets = useMemo(() => state.quizSets || [], [state.quizSets]);
 
-  // Controls
+  const quizSets = useMemo(() => state.quizSets || [], [state.quizSets]);
+  const courses = useMemo(() => state.courses || [], [state.courses]);
+
+  // Builder controls
+  const [summarizingSetId, setSummarizingSetId] = useState(null);
   const [questionCount, setQuestionCount] = useState(10);
   const [useAutoTime, setUseAutoTime] = useState(true);
   const [customMinutes, setCustomMinutes] = useState(5);
 
-  // Builder
+  // Builder form state
   const [title, setTitle] = useState("");
   const [sourceText, setSourceText] = useState("");
   const [fileInfo, setFileInfo] = useState("");
   const [error, setError] = useState("");
-
-  // AI loading (per set)
   const [generatingSetId, setGeneratingSetId] = useState(null);
+  const [selectedCourseId, setSelectedCourseId] = useState("");
 
-  // Practice
+  // Practice state
   const [activeSetId, setActiveSetId] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -37,27 +37,26 @@ export default function QuizBuilder() {
   const [score, setScore] = useState(0);
   const [showResult, setShowResult] = useState(false);
 
-  // Timer
+  // Attempt review modal state
+  const [viewAttempt, setViewAttempt] = useState(null);
+
   const { secondsLeft, isRunning, start, stop, reset } = useCountdown();
 
   useEffect(() => {
     saveState(state);
   }, [state]);
 
-  // Auto-finish when timer ends
-  useEffect(() => {
-    if (activeSetId && isRunning === false && secondsLeft === 0) {
-      // If timer ran down while a quiz is active, show results
-      // (This triggers when countdown stops at 0)
-      // Only flip if currently mid-quiz.
-      if (!showResult) setShowResult(true);
-    }
-  }, [activeSetId, isRunning, secondsLeft, showResult]);
-
   const activeSet = useMemo(
     () => quizSets.find((s) => s.id === activeSetId) || null,
     [quizSets, activeSetId],
   );
+
+  useEffect(() => {
+    // If timer runs down mid-quiz, end the quiz
+    if (activeSetId && isRunning === false && secondsLeft === 0) {
+      if (!showResult) setShowResult(true);
+    }
+  }, [activeSetId, isRunning, secondsLeft, showResult]);
 
   function startPractice(setId) {
     setActiveSetId(setId);
@@ -77,6 +76,33 @@ export default function QuizBuilder() {
     setShowResult(false);
     stop();
     reset();
+  }
+
+  function onViewAttempt(setId, attemptId) {
+    setViewAttempt({ setId, attemptId });
+  }
+
+  function onDeleteAttempt(setId, attemptId) {
+    setState((prev) => ({
+      ...prev,
+      quizSets: (prev.quizSets || []).map((set) => {
+        if (set.id !== setId) return set;
+
+        if (attemptId === "__ALL__") {
+          return { ...set, attempts: [] };
+        }
+
+        const attempts = Array.isArray(set.attempts) ? set.attempts : [];
+        return { ...set, attempts: attempts.filter((a) => a.id !== attemptId) };
+      }),
+    }));
+
+    setViewAttempt((prev) => {
+      if (!prev) return prev;
+      if (prev.setId !== setId) return prev;
+      if (attemptId === "__ALL__") return null;
+      return prev.attemptId === attemptId ? null : prev;
+    });
   }
 
   function handleNext() {
@@ -178,6 +204,10 @@ export default function QuizBuilder() {
       title: title.trim(),
       sourceText,
       questions: [],
+      summary: "",
+      promptHistory: [],
+      attempts: [],
+      courseId: selectedCourseId || "", // keep consistent type
       createdAt: new Date().toISOString(),
     };
 
@@ -189,6 +219,7 @@ export default function QuizBuilder() {
     setTitle("");
     setSourceText("");
     setFileInfo("");
+    setSelectedCourseId("");
     setError("");
   }
 
@@ -218,6 +249,11 @@ export default function QuizBuilder() {
           sourceText: target.sourceText,
           count,
           difficulty: "mixed",
+          nonce: crypto.randomUUID(),
+          avoid: (target.promptHistory || target.questions || [])
+            .map((q) => (typeof q === "string" ? q : q.prompt))
+            .filter(Boolean)
+            .slice(0, 60),
         }),
       });
 
@@ -255,11 +291,23 @@ export default function QuizBuilder() {
         return [];
       }
 
+      // Save questions + promptHistory so next attempt avoids repeats
       setState((prev) => ({
         ...prev,
-        quizSets: (prev.quizSets || []).map((set) =>
-          set.id === setId ? { ...set, questions } : set,
-        ),
+        quizSets: (prev.quizSets || []).map((set) => {
+          if (set.id !== setId) return set;
+
+          const newPrompts = questions.map((q) => q.prompt).filter(Boolean);
+          const oldHistory = Array.isArray(set.promptHistory)
+            ? set.promptHistory
+            : [];
+
+          return {
+            ...set,
+            questions,
+            promptHistory: [...newPrompts, ...oldHistory].slice(0, 140),
+          };
+        }),
       }));
 
       setError("");
@@ -273,6 +321,65 @@ export default function QuizBuilder() {
     }
   }
 
+  async function summarizeWithAI(setId) {
+    if (summarizingSetId === setId) return "";
+
+    const target = (state.quizSets || []).find((x) => x.id === setId);
+    if (!target) return "";
+
+    try {
+      setSummarizingSetId(setId);
+      setError("Generating summary…");
+
+      const r = await fetch("http://localhost:5050/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: target.title,
+          sourceText: target.sourceText,
+        }),
+      });
+
+      const raw = await r.text();
+      let data = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { error: raw || "Server returned a non-JSON response." };
+      }
+
+      if (!r.ok) {
+        setError(data.error || `Summary failed (HTTP ${r.status}).`);
+        return "";
+      }
+
+      const summary = String(data.summary || "").trim();
+      if (!summary) {
+        setError("AI returned an empty summary. Try again.");
+        return "";
+      }
+
+      setState((prev) => ({
+        ...prev,
+        quizSets: (prev.quizSets || []).map((set) =>
+          set.id === setId ? { ...set, summary } : set,
+        ),
+      }));
+
+      setError("");
+      setTimeout(() => {
+        window.location.hash = `#/summaries?setId=${setId}`;
+      }, 0);
+      return summary;
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || "Summary generation failed.");
+      return "";
+    } finally {
+      setSummarizingSetId(null);
+    }
+  }
+
   async function onTakeQuiz(setId) {
     const questions = await generateWithAI(setId, questionCount);
     if (!questions.length) return;
@@ -280,9 +387,45 @@ export default function QuizBuilder() {
     const mins = useAutoTime
       ? getQuizMinutes(questionCount)
       : Math.max(1, Number(customMinutes || 1));
-    start(mins * 60);
 
+    start(mins * 60);
     startPractice(setId);
+  }
+
+  function saveAttemptForSet({
+    setId,
+    score,
+    total,
+    answers,
+    questionsSnapshot,
+  }) {
+    const takenAt = new Date().toISOString();
+    const minutesPlanned = useAutoTime
+      ? getQuizMinutes(questionCount)
+      : Math.max(1, Number(customMinutes || 1));
+
+    const attempt = {
+      id: crypto.randomUUID(),
+      takenAt,
+      questionCount: total,
+      minutesPlanned,
+      score,
+      total,
+      answers,
+      questionsSnapshot,
+    };
+
+    setState((prev) => ({
+      ...prev,
+      quizSets: (prev.quizSets || []).map((set) => {
+        if (set.id !== setId) return set;
+
+        const oldAttempts = Array.isArray(set.attempts) ? set.attempts : [];
+        const nextAttempts = [attempt, ...oldAttempts].slice(0, 4);
+
+        return { ...set, attempts: nextAttempts };
+      }),
+    }));
   }
 
   return (
@@ -296,6 +439,9 @@ export default function QuizBuilder() {
         error={error}
         onFileUpload={handleFileUpload}
         onSave={saveQuizSet}
+        courses={courses}
+        selectedCourseId={selectedCourseId}
+        setSelectedCourseId={setSelectedCourseId}
       />
 
       <QuizControls
@@ -310,9 +456,87 @@ export default function QuizBuilder() {
       <QuizSetsTable
         quizSets={quizSets}
         generatingSetId={generatingSetId}
+        summarizingSetId={summarizingSetId}
         onTakeQuiz={onTakeQuiz}
+        onSummarize={summarizeWithAI}
         onRemoveSet={removeSet}
+        onViewAttempt={onViewAttempt}
+        onDeleteAttempt={onDeleteAttempt}
       />
+
+      {viewAttempt && (
+        <div className="card" style={{ marginTop: 14 }}>
+          <h3 className="sectionTitle">Attempt Review</h3>
+
+          {(() => {
+            const set = quizSets.find((s) => s.id === viewAttempt.setId);
+            const attempt = (set?.attempts || []).find(
+              (a) => a.id === viewAttempt.attemptId,
+            );
+
+            if (!set || !attempt) {
+              return <p className="muted">Attempt not found.</p>;
+            }
+
+            const qs = attempt.questionsSnapshot || [];
+            const ans = attempt.answers || {};
+
+            return (
+              <>
+                <p className="muted">
+                  <strong>{set.title}</strong> • Score{" "}
+                  <strong>
+                    {attempt.score} / {attempt.total}
+                  </strong>{" "}
+                  • Time <strong>{attempt.minutesPlanned} mins</strong>
+                </p>
+
+                <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+                  {qs.map((q, idx) => {
+                    const yourAns = ans[q.id];
+                    const correct = yourAns === q.answer;
+
+                    return (
+                      <div key={q.id} className="card" style={{ padding: 12 }}>
+                        <div style={{ fontWeight: 700 }}>
+                          {idx + 1}. {q.prompt}
+                        </div>
+
+                        <div className="muted" style={{ marginTop: 6 }}>
+                          Your answer: <strong>{yourAns || "No answer"}</strong>{" "}
+                          {correct ? "✅" : "❌"}
+                        </div>
+
+                        {!correct && (
+                          <div className="muted" style={{ marginTop: 4 }}>
+                            Correct answer: <strong>{q.answer}</strong>
+                          </div>
+                        )}
+
+                        {q.explanation && (
+                          <div className="muted" style={{ marginTop: 6 }}>
+                            Explanation: {q.explanation}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <button
+                    className="navBtn"
+                    type="button"
+                    onClick={() => setViewAttempt(null)}
+                  >
+                    Close Review
+                  </button>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
 
       <PracticeMode
         activeSet={activeSet}
@@ -325,8 +549,32 @@ export default function QuizBuilder() {
         showResult={showResult}
         onNext={handleNext}
         onExit={exitPractice}
-        onRetake={() => startPractice(activeSetId)}
+        onRetake={async () => {
+          if (!activeSetId) return;
+
+          const questions = await generateWithAI(activeSetId, questionCount);
+          if (!questions.length) return;
+
+          const mins = useAutoTime
+            ? getQuizMinutes(questionCount)
+            : Math.max(1, Number(customMinutes || 1));
+          start(mins * 60);
+
+          startPractice(activeSetId);
+        }}
         secondsLeft={secondsLeft}
+        activeSetId={activeSetId}
+        onFinishAttempt={() => {
+          if (!activeSetId || !activeSet) return;
+
+          saveAttemptForSet({
+            setId: activeSetId,
+            score,
+            total: (activeSet.questions || []).length,
+            answers: attemptAnswers,
+            questionsSnapshot: activeSet.questions || [],
+          });
+        }}
       />
     </div>
   );

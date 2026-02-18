@@ -328,3 +328,44 @@
   opacity: 0.75;
   cursor: pointer;
 }
+
+/* new code */
+
+.brandIcon {
+  width: 36px;
+  height: 36px;
+}
+
+.brandText {
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: -0.5px;
+}
+
+.brandCram {
+  color: #3f3dff;
+}
+
+.brandLess {
+  color: #00c2a8;
+}
+.brandText {
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: -0.6px;
+}
+.brand:hover {
+  opacity: 0.9;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.brand:focus {
+  outline: none;
+}

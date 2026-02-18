@@ -1,17 +1,6 @@
 export default function Start() {
   return (
     <>
-      <header className="startHeader">
-        <div className="logoBox" aria-label="CramLess logo">
-          CL
-        </div>
-
-        <div>
-          <h1 className="title">CramLess</h1>
-          <p className="subtitle">A Smart Study Planner & Quiz Builder</p>
-        </div>
-      </header>
-
       <main className="card">
         <h2 className="sectionTitle">What this is for</h2>
         <p>

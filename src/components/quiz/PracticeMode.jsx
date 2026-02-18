@@ -1,6 +1,7 @@
-import { formatTime } from "../../utils/quizTime";
+import { useEffect, useRef } from "react";
 
 export default function PracticeMode({
+  activeSetId,
   activeSet,
   currentIndex,
   selectedAnswer,
@@ -13,13 +14,47 @@ export default function PracticeMode({
   onExit,
   onRetake,
   secondsLeft,
+  onFinishAttempt,
 }) {
-  if (!activeSet) return null;
+  // Prevent saving twice for the same attempt
+  const savedAttemptRef = useRef(false);
+  const lastAttemptKeyRef = useRef("");
+
+  // Reset the "saved" guard whenever a new attempt starts
+  useEffect(() => {
+    const key = `${activeSetId || ""}:${(activeSet?.questions || []).length}:${String(
+      activeSet?.questions?.[0]?.id || "",
+    )}`;
+
+    if (key && key !== lastAttemptKeyRef.current) {
+      lastAttemptKeyRef.current = key;
+      savedAttemptRef.current = false;
+    }
+  }, [activeSetId, activeSet]);
+
+  // When results show, save attempt once
+  useEffect(() => {
+    if (!activeSetId) return;
+    if (!activeSet) return;
+    if (!showResult) return;
+    if (savedAttemptRef.current) return;
+
+    savedAttemptRef.current = true;
+    onFinishAttempt?.();
+  }, [activeSetId, activeSet, showResult, onFinishAttempt]);
+
+  if (!activeSetId || !activeSet) return null;
 
   const questions = activeSet.questions || [];
   if (!questions.length) return null;
 
   const currentQuestion = questions[currentIndex];
+
+  function formatTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = String(sec % 60).padStart(2, "0");
+    return `${m}:${s}`;
+  }
 
   return (
     <div className="card" style={{ marginTop: 20 }}>
@@ -36,7 +71,11 @@ export default function PracticeMode({
           </p>
 
           <div
-            style={{ marginTop: 10, whiteSpace: "pre-line", fontWeight: 700 }}
+            style={{
+              marginTop: 10,
+              whiteSpace: "pre-line",
+              fontWeight: 700,
+            }}
           >
             {currentQuestion.prompt}
           </div>
@@ -61,7 +100,12 @@ export default function PracticeMode({
           </div>
 
           <div
-            style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}
+            style={{
+              marginTop: 14,
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
           >
             <button
               className="primaryBtn"
@@ -120,7 +164,12 @@ export default function PracticeMode({
           </div>
 
           <div
-            style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}
+            style={{
+              marginTop: 12,
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
           >
             <button className="primaryBtn" type="button" onClick={onRetake}>
               Retake Quiz
