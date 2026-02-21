@@ -13,8 +13,10 @@ function getQueryParam(name) {
 
 export default function CBTRoom() {
   const [state, setState] = useState(() => loadState());
-
   const quizSets = useMemo(() => state.quizSets || [], [state.quizSets]);
+
+  const [error, setError] = useState("");
+  const [generating, setGenerating] = useState(false);
 
   // Practice state
   const [activeSetId, setActiveSetId] = useState(null);
@@ -23,9 +25,6 @@ export default function CBTRoom() {
   const [attemptAnswers, setAttemptAnswers] = useState({});
   const [score, setScore] = useState(0);
   const [showResult, setShowResult] = useState(false);
-
-  const [error, setError] = useState("");
-  const [generating, setGenerating] = useState(false);
 
   const { secondsLeft, isRunning, start, stop, reset } = useCountdown();
 
@@ -38,7 +37,6 @@ export default function CBTRoom() {
     [quizSets, activeSetId],
   );
 
-  // end when timer hits 0
   useEffect(() => {
     if (activeSetId && isRunning === false && secondsLeft === 0) {
       if (!showResult) setShowResult(true);
@@ -63,8 +61,8 @@ export default function CBTRoom() {
     setShowResult(false);
     stop();
     reset();
-    // go back to set details
-    const sid = getQueryParam("setId") || "";
+
+    const sid = getQueryParam("setId");
     window.location.hash = sid ? `#/quizSet?setId=${sid}` : "#/quizSets";
   }
 
@@ -176,7 +174,7 @@ export default function CBTRoom() {
         return [];
       }
 
-      // save questions + promptHistory
+      // Save questions + promptHistory
       setState((prev) => ({
         ...prev,
         quizSets: (prev.quizSets || []).map((set) => {
@@ -206,7 +204,7 @@ export default function CBTRoom() {
     }
   }
 
-  const autoStartRef = useRef("");
+  const startedRef = useRef("");
 
   // ✅ Auto-start when entering CBT room
   useEffect(() => {
@@ -216,13 +214,11 @@ export default function CBTRoom() {
       return;
     }
 
-    // stop double-run
-    if (autoStartRef.current === setId) return;
-    autoStartRef.current = setId;
+    if (startedRef.current === setId) return;
+    startedRef.current = setId;
 
     (async () => {
-      // use query param count if provided, else default 10
-      const count = Number(getQueryParam("count") || 10);
+      const count = Math.max(1, Number(getQueryParam("count") || 10));
 
       const questions = await generateWithAI(setId, count);
       if (!questions.length) return;
@@ -231,16 +227,16 @@ export default function CBTRoom() {
       start(mins * 60);
       startPractice(setId);
 
-      // optional: clean URL so refresh won't regenerate endlessly
-      window.location.hash = `#/cbt?setId=${setId}`;
+      // clean URL
+      window.location.hash = `#/cbt?setId=${setId}&count=${count}`;
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.quizSets]);
 
   async function onRetake() {
     if (!activeSetId) return;
-    const count = Number(getQueryParam("count") || 10);
 
+    const count = Math.max(1, Number(getQueryParam("count") || 10));
     const questions = await generateWithAI(activeSetId, count);
     if (!questions.length) return;
 
@@ -249,7 +245,6 @@ export default function CBTRoom() {
     startPractice(activeSetId);
   }
 
-  // If not started yet, show a simple loading card
   if (!activeSetId || !activeSet) {
     return (
       <div className="card">
@@ -257,7 +252,6 @@ export default function CBTRoom() {
         <p className="muted">
           {error || (generating ? "Preparing your quiz…" : "Loading…")}
         </p>
-
         <button
           className="navBtn"
           type="button"
@@ -271,12 +265,10 @@ export default function CBTRoom() {
 
   return (
     <div>
-      {/* Optional header card */}
       <div className="card" style={{ marginBottom: 14 }}>
         <h2 className="sectionTitle">CBT Room</h2>
         <p className="muted" style={{ marginTop: 6 }}>
           <strong>{activeSet.title}</strong>
-          {generating ? " • Generating…" : ""}
         </p>
         {error && (
           <div className="errorBox" style={{ marginTop: 10 }}>
@@ -301,6 +293,7 @@ export default function CBTRoom() {
         activeSetId={activeSetId}
         onFinishAttempt={() => {
           if (!activeSetId || !activeSet) return;
+
           saveAttemptForSet({
             setId: activeSetId,
             score,
