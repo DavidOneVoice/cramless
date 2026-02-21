@@ -1,28 +1,45 @@
+import "./QuizSetsTable.css";
+
 export default function QuizSetsTable({
   quizSets = [],
   onOpenSet,
   onRemoveSet,
 }) {
   return (
-    <div className="card" style={{ marginTop: 14 }}>
-      <h3 className="sectionTitle">Quiz Sets</h3>
+    <section className="qstCard">
+      <div className="qstTop">
+        <h3 className="qstTitle">Saved Sets</h3>
+        <div className="qstCount">
+          {quizSets.length} set{quizSets.length === 1 ? "" : "s"}
+        </div>
+      </div>
 
       {quizSets.length === 0 ? (
-        <p className="muted">No saved sets yet.</p>
+        <div className="qstEmpty">
+          <div className="qstEmptyIcon" aria-hidden="true" />
+          <div className="qstEmptyText">
+            <div className="qstEmptyTitle">No saved sets yet</div>
+            <div className="qstEmptySub">
+              Create a quiz set to generate MCQs anytime.
+            </div>
+          </div>
+        </div>
       ) : (
-        <div className="table">
-          <div className="row head">
-            <div>Title</div>
-            <div>Actions</div>
+        <div className="qstTable" role="table" aria-label="Quiz sets table">
+          <div className="qstRow qstHead" role="row">
+            <div role="columnheader">Title</div>
+            <div role="columnheader">Actions</div>
           </div>
 
           {quizSets.map((s) => (
-            <div className="row" key={s.id}>
-              <div style={{ fontWeight: 700 }}>{s.title}</div>
+            <div className="qstRow" role="row" key={s.id}>
+              <div className="qstName" role="cell">
+                {s.title}
+              </div>
 
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div className="qstActions" role="cell">
                 <button
-                  className="primaryBtn"
+                  className="qstOpen"
                   type="button"
                   onClick={() => onOpenSet?.(s.id)}
                 >
@@ -30,7 +47,7 @@ export default function QuizSetsTable({
                 </button>
 
                 <button
-                  className="dangerBtn"
+                  className="qstRemove"
                   type="button"
                   onClick={() => onRemoveSet?.(s.id)}
                 >
@@ -42,9 +59,9 @@ export default function QuizSetsTable({
         </div>
       )}
 
-      <p className="footerNote">
+      <p className="qstFooter">
         Open a set to take quiz, view attempts, and manage summaries.
       </p>
-    </div>
+    </section>
   );
 }

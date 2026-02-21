@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ConfirmModal from "../common/ConfirmModal";
+import "./PlannerCoursesCard.css";
 
 export default function PlannerCoursesCard({
   courses = [],
@@ -17,13 +18,47 @@ export default function PlannerCoursesCard({
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   return (
-    <div className="card" style={{ marginTop: 14 }}>
-      <h3 className="sectionTitle">Your Courses</h3>
+    <div className="pccCard card">
+      <header className="pccHeader">
+        <div>
+          <div className="pccBadge">Step 3</div>
+          <h3 className="pccTitle">Your Courses</h3>
+          <p className="pccSub">
+            Manage courses, launch linked quizzes, then generate your schedule.
+          </p>
+        </div>
+
+        <div className="pccHeaderActions">
+          <button
+            className="primaryBtn"
+            type="button"
+            onClick={onGenerateSchedule}
+          >
+            Generate Schedule
+          </button>
+
+          <button
+            className="navBtn"
+            type="button"
+            onClick={() => setShowClearConfirm(true)}
+          >
+            Clear Schedule
+          </button>
+        </div>
+      </header>
 
       {courses.length === 0 ? (
-        <p className="muted">No courses added yet.</p>
+        <div className="pccEmpty">
+          <div className="pccEmptyIcon" aria-hidden="true" />
+          <div>
+            <div className="pccEmptyTitle">No courses added yet</div>
+            <div className="pccEmptySub">
+              Go back to Scheduler Setup to add your first course.
+            </div>
+          </div>
+        </div>
       ) : (
-        <div className="table">
+        <div className="table pccTable">
           <div className="row head">
             <div>Course</div>
             <div>Exam Date</div>
@@ -35,11 +70,11 @@ export default function PlannerCoursesCard({
             const courseQuizzes = quizSets.filter((q) => q.courseId === c.id);
 
             return (
-              <div key={c.id} style={{ paddingBottom: 10 }}>
+              <div key={c.id} className="pccCourseBlock">
                 <div className="row">
-                  <div>{c.name}</div>
+                  <div className="pccCourseName">{c.name}</div>
                   <div>{c.examDate}</div>
-                  <div>{c.workload}</div>
+                  <div className="pccPriority">{c.workload}</div>
 
                   <div className="right">
                     <button
@@ -53,12 +88,10 @@ export default function PlannerCoursesCard({
                 </div>
 
                 {courseQuizzes.length > 0 && (
-                  <div style={{ marginTop: 10, paddingLeft: 6 }}>
-                    <div style={{ fontWeight: 600, opacity: 0.9 }}>
-                      Linked Quizzes
-                    </div>
+                  <div className="pccLinked">
+                    <div className="pccLinkedTitle">Linked Quizzes</div>
 
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <div className="pccLinkedButtons">
                       {courseQuizzes.map((q) => (
                         <button
                           key={q.id}
@@ -66,7 +99,6 @@ export default function PlannerCoursesCard({
                           type="button"
                           disabled={takingQuizSetId === q.id}
                           onClick={() => onTakeQuizFromPlanner(q.id, 10)}
-                          style={{ marginTop: 6 }}
                         >
                           {takingQuizSetId === q.id
                             ? "Generating…"
@@ -82,39 +114,14 @@ export default function PlannerCoursesCard({
         </div>
       )}
 
-      {quizError && (
-        <div className="errorBox" style={{ marginTop: 12 }}>
-          {quizError}
+      {(quizError || scheduleError) && (
+        <div className="pccErrors">
+          {quizError && <div className="errorBox">{quizError}</div>}
+          {scheduleError && <div className="errorBox">{scheduleError}</div>}
         </div>
       )}
 
-      {scheduleError && (
-        <div className="errorBox" style={{ marginTop: 12 }}>
-          {scheduleError}
-        </div>
-      )}
-
-      <div
-        style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}
-      >
-        <button
-          className="primaryBtn"
-          type="button"
-          onClick={onGenerateSchedule}
-        >
-          Generate Schedule
-        </button>
-
-        <button
-          className="navBtn"
-          type="button"
-          onClick={() => setShowClearConfirm(true)}
-        >
-          Clear Schedule
-        </button>
-      </div>
-
-      <p className="footerNote">
+      <p className="footerNote pccFoot">
         Tip: Priority helps the scheduler allocate more time to heavier or more
         important courses.
       </p>

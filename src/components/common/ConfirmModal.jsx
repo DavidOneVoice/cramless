@@ -1,4 +1,5 @@
 import "./ConfirmModal.css";
+
 export default function ConfirmModal({
   open,
   title = "Confirm",
@@ -13,30 +14,28 @@ export default function ConfirmModal({
 
   return (
     <div
-      className="modalOverlay"
+      className="cmOverlay"
       role="dialog"
       aria-modal="true"
       aria-label={title}
       onClick={onCancel}
     >
-      <div className="modalCard" onClick={(e) => e.stopPropagation()}>
-        <div className="modalHeader">
-          <h3 className="modalTitle">{title}</h3>
+      <div className="cmCard" onClick={(e) => e.stopPropagation()}>
+        <div className="cmHeader">
+          <h3 className="cmTitle">{title}</h3>
         </div>
 
-        <div className="modalBody">
-          <p className="muted" style={{ margin: 0, whiteSpace: "pre-line" }}>
-            {message}
-          </p>
+        <div className="cmBody">
+          <p className="cmMessage">{message}</p>
         </div>
 
-        <div className="modalActions">
-          <button className="navBtn" type="button" onClick={onCancel}>
+        <div className="cmActions">
+          <button className="cmBtn" type="button" onClick={onCancel}>
             {cancelText}
           </button>
 
           <button
-            className={danger ? "dangerBtn" : "primaryBtn"}
+            className={danger ? "cmBtn cmDanger" : "cmBtn cmPrimary"}
             type="button"
             onClick={onConfirm}
           >

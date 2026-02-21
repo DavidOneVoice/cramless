@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { resetState } from "./lib/storage";
 import "./App.css";
+import "./styles/ui.css";
 import QuizSetDetails from "./pages/QuizSetDetails";
 import Start from "./pages/Start";
 import Planner from "./pages/Planner";
@@ -33,21 +34,15 @@ function normalizeHashKey(rawHash) {
     "": "start",
     start: "start",
     home: "start",
-
     planner: "planner",
-
     schedule: "schedule",
     timetable: "schedule",
-
     quiz: "quiz",
     quizbuilder: "quiz",
-
     summaries: "summaries",
     summary: "summaries",
-
     quizsets: "quizSets",
     "quiz-sets": "quizSets",
-
     quizset: "quizSet",
     "quiz-set": "quizSet",
     quizsetdetails: "quizSet",
@@ -68,6 +63,7 @@ function getHashPage() {
 
 export default function App() {
   const [page, setPage] = useState(() => getHashPage());
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const onHashChange = () => setPage(getHashPage());
@@ -75,10 +71,14 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  useEffect(() => {
+    // close mobile menu on page change
+    setMenuOpen(false);
+  }, [page]);
+
   const ActivePage = useMemo(() => PAGES[page].component, [page]);
 
   function go(to) {
-    // set immediately (no waiting for hashchange)
     setPage(PAGES[to] ? to : "start");
     window.location.hash = `#/${to}`;
   }
@@ -86,7 +86,7 @@ export default function App() {
   return (
     <div className="app">
       <nav className="nav">
-        <div>
+        <div className="navLeft">
           <button
             className="brand"
             onClick={() => go("start")}
@@ -100,10 +100,22 @@ export default function App() {
             </span>
           </button>
 
-          <p className="subtitle">A Smart Study Planner & Quiz Builder</p>
+          <p className="subtitle">A Smart Study Planner &amp; Quiz Builder</p>
         </div>
 
-        <div className="navLinks">
+        <button
+          className="menuBtn"
+          type="button"
+          aria-label="Toggle menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          <span className="menuDot" />
+          <span className="menuDot" />
+          <span className="menuDot" />
+        </button>
+
+        <div className={menuOpen ? "navLinks open" : "navLinks"}>
           <button
             className={page === "start" ? "navBtn active" : "navBtn"}
             onClick={() => go("start")}
@@ -153,7 +165,7 @@ export default function App() {
           </button>
 
           <button
-            className="navBtn"
+            className="navBtn danger"
             onClick={() => {
               resetState();
               window.location.hash = "#/start";
@@ -166,7 +178,9 @@ export default function App() {
         </div>
       </nav>
 
-      <ActivePage />
+      <main className="page">
+        <ActivePage />
+      </main>
     </div>
   );
 }

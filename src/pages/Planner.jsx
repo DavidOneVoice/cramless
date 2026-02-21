@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { generateSchedule } from "../lib/scheduler";
 import { loadState, saveState } from "../lib/storage";
 import { makeCourse, validateCourse } from "../lib/courses";
+import { API_BASE } from "../lib/api";
 
 import PlannerSetupCard from "../components/planner/PlannerSetupCard";
 import PlannerCoursesCard from "../components/planner/PlannerCoursesCard";
+
+import "./Planner.css";
 
 export default function Planner() {
   const [state, setState] = useState(() => loadState());
@@ -23,9 +26,18 @@ export default function Planner() {
   // quiz integration
   const [takingQuizSetId, setTakingQuizSetId] = useState(null);
 
+  // UI feedback (replaces alert)
+  const [toast, setToast] = useState("");
+
   useEffect(() => {
     saveState(state);
   }, [state]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(""), 1600);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const courses = useMemo(() => state.courses || [], [state.courses]);
   const quizSets = useMemo(() => state.quizSets || [], [state.quizSets]);
@@ -111,7 +123,7 @@ export default function Planner() {
       setTakingQuizSetId(quizSetId);
       setQuizError("");
 
-      const r = await fetch("http://localhost:5050/api/generate-mcqs", {
+      const r = await fetch(`${API_BASE}/api/generate-mcqs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -170,7 +182,7 @@ export default function Planner() {
         ui: { ...(prev.ui || {}), activeTab: "quiz", activeSetId: quizSetId },
       }));
 
-      alert("Quiz generated ✅ Open Quiz Builder to take it.");
+      setToast("Quiz generated ✅ Open Quiz Builder to take it.");
     } catch (err) {
       console.error(err);
       setQuizError(err?.message || "Failed to generate quiz.");
@@ -180,19 +192,36 @@ export default function Planner() {
   }
 
   return (
-    <div>
-      <div className="card">
-        <h2 className="sectionTitle">Study Planner</h2>
-        <p className="muted">
-          Add your courses and exam dates. Then set your availability to
-          generate a balanced study schedule.
-        </p>
+    <div className="plPage">
+      <section className="plCard card">
+        <header className="plHeader">
+          <div>
+            <div className="plBadge">Planner</div>
+            <h2 className="plTitle">Study Planner</h2>
+            <p className="plSub">
+              Add your courses and exam dates. Then set your availability to
+              generate a balanced study schedule.
+            </p>
+          </div>
 
-        <div className="card" style={{ marginBottom: 14 }}>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div className="plHeaderActions">
+            <button
+              className="plGhost"
+              type="button"
+              onClick={() => (window.location.hash = "#/schedule")}
+            >
+              View Schedule
+            </button>
+          </div>
+        </header>
+
+        {toast && <div className="plToast">{toast}</div>}
+
+        <div className="plTabsCard">
+          <div className="plTabs">
             <button
               type="button"
-              className={activeTab === "setup" ? "navBtn active" : "navBtn"}
+              className={activeTab === "setup" ? "plTab active" : "plTab"}
               onClick={() => setActiveTab("setup")}
             >
               Scheduler Setup
@@ -200,7 +229,7 @@ export default function Planner() {
 
             <button
               type="button"
-              className={activeTab === "courses" ? "navBtn active" : "navBtn"}
+              className={activeTab === "courses" ? "plTab active" : "plTab"}
               onClick={() => setActiveTab("courses")}
             >
               Your Courses
@@ -208,35 +237,37 @@ export default function Planner() {
           </div>
         </div>
 
-        {activeTab === "setup" && (
-          <PlannerSetupCard
-            name={name}
-            setName={setName}
-            examDate={examDate}
-            setExamDate={setExamDate}
-            workload={workload}
-            setWorkload={setWorkload}
-            onAddCourse={addCourse}
-            availability={state.availability || {}}
-            setAvailability={setAvailability}
-            errors={errors}
-          />
-        )}
+        <div className="plBody">
+          {activeTab === "setup" && (
+            <PlannerSetupCard
+              name={name}
+              setName={setName}
+              examDate={examDate}
+              setExamDate={setExamDate}
+              workload={workload}
+              setWorkload={setWorkload}
+              onAddCourse={addCourse}
+              availability={state.availability || {}}
+              setAvailability={setAvailability}
+              errors={errors}
+            />
+          )}
 
-        {activeTab === "courses" && (
-          <PlannerCoursesCard
-            courses={courses}
-            quizSets={quizSets}
-            takingQuizSetId={takingQuizSetId}
-            onRemoveCourse={removeCourse}
-            onTakeQuizFromPlanner={takeQuizFromPlanner}
-            quizError={quizError}
-            scheduleError={scheduleError}
-            onGenerateSchedule={handleGenerateSchedule}
-            onClearSchedule={handleClearSchedule}
-          />
-        )}
-      </div>
+          {activeTab === "courses" && (
+            <PlannerCoursesCard
+              courses={courses}
+              quizSets={quizSets}
+              takingQuizSetId={takingQuizSetId}
+              onRemoveCourse={removeCourse}
+              onTakeQuizFromPlanner={takeQuizFromPlanner}
+              quizError={quizError}
+              scheduleError={scheduleError}
+              onGenerateSchedule={handleGenerateSchedule}
+              onClearSchedule={handleClearSchedule}
+            />
+          )}
+        </div>
+      </section>
     </div>
   );
 }

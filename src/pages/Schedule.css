@@ -1,0 +1,282 @@
+.schPage {
+  animation: pageIn 420ms ease both;
+}
+
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.schCard {
+  padding: 18px;
+  background:
+    radial-gradient(
+      900px 420px at 12% 0%,
+      rgba(63, 61, 255, 0.18),
+      transparent 55%
+    ),
+    radial-gradient(
+      820px 380px at 88% 10%,
+      rgba(0, 194, 168, 0.12),
+      transparent 60%
+    ),
+    rgba(255, 255, 255, 0.03);
+}
+
+.schHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.schBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 0.25px;
+
+  border: 1px solid rgba(0, 194, 168, 0.24);
+  background: rgba(0, 194, 168, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.schTitle {
+  margin: 10px 0 8px;
+  font-size: clamp(20px, 2.3vw, 28px);
+  letter-spacing: -0.6px;
+  line-height: 1.15;
+}
+
+.schSub {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+  font-size: 14px;
+  max-width: 85ch;
+}
+
+.schHeaderActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* Buttons */
+.schPrimary,
+.schGhost {
+  border-radius: 14px;
+  padding: 11px 14px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease,
+    border 160ms ease,
+    opacity 160ms ease;
+}
+
+.schPrimary:disabled,
+.schGhost:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.schPrimary {
+  border: 1px solid rgba(63, 61, 255, 0.28);
+  background: linear-gradient(
+    135deg,
+    rgba(63, 61, 255, 0.22),
+    rgba(0, 194, 168, 0.12)
+  );
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.schPrimary:hover {
+  transform: translateY(-1px);
+  border-color: rgba(63, 61, 255, 0.42);
+  box-shadow: 0 14px 30px rgba(63, 61, 255, 0.14);
+}
+
+.schPrimary:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.schGhost {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.schGhost:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.schGhost:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.schPrimary:focus-visible,
+.schGhost:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+/* Toolbar */
+.schToolbar {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.schFilter {
+  min-width: 260px;
+}
+
+.schTools {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.schToolRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.schCopied {
+  font-weight: 1000;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.schCount {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  text-align: right;
+}
+
+.schCount strong {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Table */
+.schTableWrap {
+  margin-top: 14px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.schTable .row.schedule > div {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.schFoot {
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* Empty state */
+.schEmpty {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  margin-top: 12px;
+}
+
+.schEmptyIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(0, 194, 168, 0.55),
+    rgba(63, 61, 255, 0.18)
+  );
+  box-shadow: 0 14px 28px rgba(0, 194, 168, 0.1);
+}
+
+.schEmptyTitle {
+  font-weight: 1000;
+}
+
+.schEmptySub {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.schCTA {
+  margin-top: 10px;
+}
+
+@media (max-width: 720px) {
+  .schTools {
+    justify-items: stretch;
+    width: 100%;
+  }
+
+  .schToolRow {
+    justify-content: stretch;
+  }
+
+  .schGhost {
+    width: 100%;
+  }
+
+  .schHeaderActions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .schHeaderActions .schGhost {
+    width: 100%;
+  }
+}

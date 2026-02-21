@@ -5,6 +5,7 @@ import {
   hhmmToDate,
   isoToDate,
 } from "../../lib/dateHelpers";
+import "./PlannerSetupCard.css";
 
 export default function PlannerSetupCard({
   // course form
@@ -24,10 +25,17 @@ export default function PlannerSetupCard({
   errors = [],
 }) {
   return (
-    <div className="card">
-      <h3 className="sectionTitle">Add a Course</h3>
+    <div className="pscCard card">
+      <header className="pscHeader">
+        <div className="pscBadge">Step 1</div>
+        <h3 className="pscTitle">Add a Course</h3>
+        <p className="pscSub">
+          Add your course name, exam date, and priority. Priority helps the
+          planner allocate time.
+        </p>
+      </header>
 
-      <form onSubmit={onAddCourse} className="formGrid">
+      <form onSubmit={onAddCourse} className="pscFormGrid">
         <div className="field">
           <label>Course name</label>
           <input
@@ -48,6 +56,9 @@ export default function PlannerSetupCard({
             isClearable
             showPopperArrow={false}
           />
+          <p className="pscHint">
+            This helps the scheduler prioritize what’s closer.
+          </p>
         </div>
 
         <div className="field">
@@ -62,26 +73,29 @@ export default function PlannerSetupCard({
               </option>
             ))}
           </select>
+          <p className="pscHint">10 = most important / heavy course.</p>
         </div>
 
-        <div className="field">
-          <label>&nbsp;</label>
+        <div className="pscCTA">
           <button className="primaryBtn" type="submit">
             Add course
           </button>
         </div>
       </form>
 
-      <hr className="divider" />
+      <div className="pscDivider" />
 
-      <h3 className="sectionTitle">Study Availability</h3>
-      <p className="muted">
-        Choose the days you can study and your preferred time window. This will
-        be used to generate your schedule.
-      </p>
+      <header className="pscHeader">
+        <div className="pscBadge pscBadge2">Step 2</div>
+        <h3 className="pscTitle">Study Availability</h3>
+        <p className="pscSub">
+          Choose the days you can study and your preferred time window. This is
+          used to generate your schedule.
+        </p>
+      </header>
 
-      <div className="availability">
-        <div className="days">
+      <div className="pscAvailability">
+        <div className="pscDays">
           {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => {
             const selected = (availability?.days || []).includes(d);
 
@@ -89,7 +103,7 @@ export default function PlannerSetupCard({
               <button
                 key={d}
                 type="button"
-                className={selected ? "chip active" : "chip"}
+                className={selected ? "pscChip active" : "pscChip"}
                 onClick={() => {
                   const currentDays = availability?.days || [];
                   const nextDays = selected
@@ -105,7 +119,7 @@ export default function PlannerSetupCard({
           })}
         </div>
 
-        <div className="timeGrid">
+        <div className="pscTimeGrid">
           <div className="field">
             <label>Start time</label>
             <DatePicker
@@ -160,17 +174,19 @@ export default function PlannerSetupCard({
                 })
               }
             />
+            <p className="pscHint">Common: 45–90 mins.</p>
           </div>
         </div>
 
-        <p className="footerNote">
-          Example: If you choose 18:00–20:00 with 60 mins sessions, you’ll have
-          2 study slots per selected day.
-        </p>
+        <div className="pscNote">
+          Example: If you choose <strong>18:00–20:00</strong> with{" "}
+          <strong>60 mins</strong> sessions, you’ll have{" "}
+          <strong>2 study slots</strong> per selected day.
+        </div>
       </div>
 
       {errors.length > 0 && (
-        <div className="errorBox">
+        <div className="errorBox pscError">
           <strong>Please fix:</strong>
           <ul>
             {errors.map((er) => (

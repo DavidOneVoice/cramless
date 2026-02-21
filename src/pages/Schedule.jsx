@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { loadState } from "../lib/storage";
 import { fromMinutes } from "../lib/time";
+import "./Schedule.css";
 
 export default function Schedule() {
   const [state, setState] = useState(() => loadState());
   const [filterCourseId, setFilterCourseId] = useState("");
+  const [copied, setCopied] = useState(false);
 
   // ✅ Refresh state whenever hash route changes (planner -> schedule, etc.)
   useEffect(() => {
@@ -16,6 +18,12 @@ export default function Schedule() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1400);
+    return () => clearTimeout(t);
+  }, [copied]);
+
   const schedule = useMemo(() => state.schedule || [], [state.schedule]);
   const courses = useMemo(() => state.courses || [], [state.courses]);
 
@@ -26,7 +34,6 @@ export default function Schedule() {
   );
 
   const cleanedSchedule = useMemo(() => {
-    // keep sessions only if course still exists
     return schedule.filter((s) => validCourseIds.has(s.courseId));
   }, [schedule, validCourseIds]);
 
@@ -93,131 +100,146 @@ export default function Schedule() {
   const hasSchedule = cleanedSchedule.length > 0;
 
   return (
-    <div className="card">
-      <h2 className="sectionTitle">Your Study Schedule</h2>
+    <div className="schPage">
+      <section className="schCard card">
+        <header className="schHeader">
+          <div>
+            <div className="schBadge">Schedule</div>
+            <h2 className="schTitle">Your Study Schedule</h2>
+            <p className="schSub">
+              A clean view of your generated sessions. Filter, copy, and export
+              anytime.
+            </p>
+          </div>
 
-      {!hasSchedule ? (
-        <>
-          <p className="muted">
-            No schedule generated yet. Go to Planner and click “Generate
-            Schedule”.
-          </p>
+          <div className="schHeaderActions">
+            <button
+              className="schGhost"
+              type="button"
+              onClick={() => (window.location.hash = "#/planner")}
+            >
+              Back to Planner
+            </button>
+          </div>
+        </header>
 
-          <button
-            className="primaryBtn"
-            type="button"
-            onClick={() => (window.location.hash = "#/planner")}
-          >
-            Go to Planner
-          </button>
-        </>
-      ) : (
-        <>
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              flexWrap: "wrap",
-              marginTop: 10,
-            }}
-          >
-            <div className="field" style={{ minWidth: 260 }}>
-              <label>Filter by course (optional)</label>
-              <select
-                value={filterCourseId}
-                onChange={(e) => setFilterCourseId(e.target.value)}
-              >
-                <option value="">All courses</option>
-                {courses.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="field" style={{ alignSelf: "end" }}>
-              <label>&nbsp;</label>
-
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button
-                  className="navBtn"
-                  type="button"
-                  onClick={() => {
-                    if (!filtered.length) return;
-                    const txt = toScheduleTxt(filtered);
-                    navigator.clipboard.writeText(txt);
-                    alert("Schedule copied to clipboard ✅");
-                  }}
-                >
-                  Copy
-                </button>
-
-                <button
-                  className="navBtn"
-                  type="button"
-                  onClick={() => {
-                    if (!filtered.length) return;
-                    const txt = toScheduleTxt(filtered);
-                    downloadFile("cramless-schedule.txt", txt, "text/plain");
-                  }}
-                >
-                  Export TXT
-                </button>
-
-                <button
-                  className="navBtn"
-                  type="button"
-                  onClick={() => {
-                    if (!filtered.length) return;
-                    const csv = toScheduleCsv(filtered);
-                    downloadFile("cramless-schedule.csv", csv, "text/csv");
-                  }}
-                >
-                  Export CSV
-                </button>
+        {!hasSchedule ? (
+          <div className="schEmpty">
+            <div className="schEmptyIcon" aria-hidden="true" />
+            <div>
+              <div className="schEmptyTitle">No schedule yet</div>
+              <div className="schEmptySub">
+                Go to Planner and click “Generate Schedule”.
               </div>
-            </div>
-
-            <div className="field" style={{ alignSelf: "end" }}>
-              <label>&nbsp;</label>
               <button
-                className="navBtn"
+                className="schPrimary schCTA"
                 type="button"
                 onClick={() => (window.location.hash = "#/planner")}
               >
-                Back to Planner
+                Go to Planner
               </button>
             </div>
           </div>
-
-          <div style={{ marginTop: 14 }}>
-            <div className="table">
-              <div className="row head schedule">
-                <div>Date</div>
-                <div>Time</div>
-                <div>Course</div>
-                <div>Type</div>
+        ) : (
+          <>
+            <div className="schToolbar">
+              <div className="schFilter field">
+                <label>Filter by course (optional)</label>
+                <select
+                  value={filterCourseId}
+                  onChange={(e) => setFilterCourseId(e.target.value)}
+                >
+                  <option value="">All courses</option>
+                  {courses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {filtered.map((s, idx) => (
-                <div className="row schedule" key={idx}>
-                  <div>{s.date}</div>
-                  <div>
-                    {fromMinutes(s.startMinutes)}–{fromMinutes(s.endMinutes)}
-                  </div>
-                  <div>{s.courseName}</div>
-                  <div>{s.type}</div>
+              <div className="schTools">
+                <div className="schToolRow">
+                  <button
+                    className="schGhost"
+                    type="button"
+                    disabled={!filtered.length}
+                    onClick={async () => {
+                      if (!filtered.length) return;
+                      const txt = toScheduleTxt(filtered);
+                      try {
+                        await navigator.clipboard.writeText(txt);
+                      } finally {
+                        setCopied(true);
+                      }
+                    }}
+                  >
+                    Copy
+                  </button>
+
+                  <button
+                    className="schGhost"
+                    type="button"
+                    disabled={!filtered.length}
+                    onClick={() => {
+                      if (!filtered.length) return;
+                      const txt = toScheduleTxt(filtered);
+                      downloadFile("cramless-schedule.txt", txt, "text/plain");
+                    }}
+                  >
+                    Export TXT
+                  </button>
+
+                  <button
+                    className="schGhost"
+                    type="button"
+                    disabled={!filtered.length}
+                    onClick={() => {
+                      if (!filtered.length) return;
+                      const csv = toScheduleCsv(filtered);
+                      downloadFile("cramless-schedule.csv", csv, "text/csv");
+                    }}
+                  >
+                    Export CSV
+                  </button>
+
+                  {copied && <span className="schCopied">Copied ✅</span>}
                 </div>
-              ))}
+
+                <div className="schCount">
+                  Showing <strong>{filtered.length}</strong> session(s)
+                </div>
+              </div>
             </div>
 
-            <p className="footerNote" style={{ marginTop: 10 }}>
-              Showing {filtered.length} session(s).
+            <div className="schTableWrap">
+              <div className="table schTable">
+                <div className="row head schedule">
+                  <div>Date</div>
+                  <div>Time</div>
+                  <div>Course</div>
+                  <div>Type</div>
+                </div>
+
+                {filtered.map((s, idx) => (
+                  <div className="row schedule" key={idx}>
+                    <div>{s.date}</div>
+                    <div>
+                      {fromMinutes(s.startMinutes)}–{fromMinutes(s.endMinutes)}
+                    </div>
+                    <div>{s.courseName}</div>
+                    <div>{s.type}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="schFoot">
+              Tip: Export CSV if you want to open it in Excel.
             </p>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </section>
     </div>
   );
 }

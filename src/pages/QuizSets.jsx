@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { loadState, saveState } from "../lib/storage";
 import QuizSetsTable from "../components/quiz/QuizSetsTable";
 import ConfirmModal from "../components/common/ConfirmModal";
+import "./QuizSets.css";
 
 export default function QuizSets() {
   const [state, setState] = useState(() => loadState());
@@ -41,31 +42,41 @@ export default function QuizSets() {
   }
 
   return (
-    <div>
-      <div className="card">
-        <h2 className="sectionTitle">Quiz Sets</h2>
-        <p className="muted">
-          Open a set to take quizzes, manage summaries, and view attempts.
-        </p>
+    <div className="qsPage">
+      <section className="qsHeader card">
+        <div className="qsHeaderTop">
+          <div className="qsTitleBlock">
+            <h2 className="qsTitle">Quiz Sets</h2>
+            <p className="qsSub">
+              Open a set to take quizzes, manage summaries, and view attempts.
+            </p>
+          </div>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button
-            className="primaryBtn"
-            type="button"
-            onClick={() => (window.location.hash = "#/quiz")}
-          >
-            + Create Quiz Set
-          </button>
+          <div className="qsActions">
+            <button
+              className="qsPrimary"
+              type="button"
+              onClick={() => (window.location.hash = "#/quiz")}
+            >
+              + Create Quiz Set
+            </button>
 
-          <button
-            className="navBtn"
-            type="button"
-            onClick={() => (window.location.hash = "#/summaries")}
-          >
-            Go to Summaries
-          </button>
+            <button
+              className="qsGhost"
+              type="button"
+              onClick={() => (window.location.hash = "#/summaries")}
+            >
+              Go to Summaries
+            </button>
+          </div>
         </div>
-      </div>
+
+        <div className="qsHintRow" aria-hidden="true">
+          <span className="qsPill">Save materials</span>
+          <span className="qsPill qsPillAlt">Generate MCQs</span>
+          <span className="qsPill">Track attempts</span>
+        </div>
+      </section>
 
       <QuizSetsTable
         quizSets={quizSets}

@@ -1,0 +1,166 @@
+.pccCard {
+  margin-top: 14px;
+  padding: 16px;
+
+  background:
+    radial-gradient(
+      900px 420px at 12% 0%,
+      rgba(0, 194, 168, 0.1),
+      transparent 55%
+    ),
+    radial-gradient(
+      820px 380px at 88% 10%,
+      rgba(63, 61, 255, 0.12),
+      transparent 60%
+    ),
+    rgba(255, 255, 255, 0.03);
+}
+
+.pccHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.pccBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-weight: 1000;
+  font-size: 12px;
+  letter-spacing: 0.25px;
+
+  border: 1px solid rgba(0, 194, 168, 0.24);
+  background: rgba(0, 194, 168, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pccTitle {
+  margin: 10px 0 6px;
+  font-weight: 1000;
+  letter-spacing: -0.4px;
+}
+
+.pccSub {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+  font-size: 14px;
+  max-width: 85ch;
+}
+
+.pccHeaderActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* Table wrapping feel */
+.pccTable {
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pccCourseBlock {
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pccCourseBlock:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.pccCourseName {
+  font-weight: 1000;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.pccPriority {
+  font-weight: 1000;
+}
+
+/* Linked Quizzes */
+.pccLinked {
+  margin-top: 10px;
+  padding-left: 6px;
+}
+
+.pccLinkedTitle {
+  font-weight: 1000;
+  opacity: 0.9;
+  font-size: 12px;
+  letter-spacing: 0.25px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.pccLinkedButtons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.pccErrors {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.pccFoot {
+  margin-top: 12px;
+}
+
+/* Empty state */
+.pccEmpty {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pccEmptyIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(0, 194, 168, 0.55),
+    rgba(63, 61, 255, 0.18)
+  );
+  box-shadow: 0 14px 28px rgba(0, 194, 168, 0.1);
+}
+
+.pccEmptyTitle {
+  font-weight: 1000;
+}
+
+.pccEmptySub {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .pccHeaderActions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .pccHeaderActions .primaryBtn,
+  .pccHeaderActions .navBtn {
+    width: 100%;
+  }
+}

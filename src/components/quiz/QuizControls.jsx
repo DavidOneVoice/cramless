@@ -1,4 +1,5 @@
 import { getQuizMinutes } from "../../utils/quizTime";
+import "./QuizControls.css";
 
 export default function QuizControls({
   questionCount,
@@ -9,44 +10,53 @@ export default function QuizControls({
   setCustomMinutes,
 }) {
   return (
-    <div
-      style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}
-    >
-      <div className="field" style={{ minWidth: 180 }}>
-        <label>Questions</label>
-        <select
-          value={questionCount}
-          onChange={(e) => setQuestionCount(Number(e.target.value))}
-        >
-          {[5, 10, 15, 20, 30, 60].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div className="qcWrapper">
+      <div className="qcCard">
+        <div className="qcSection">
+          <label className="qcLabel">Questions</label>
 
-      <div className="field" style={{ minWidth: 240 }}>
-        <label>Timer</label>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <input
-              type="checkbox"
-              checked={useAutoTime}
-              onChange={(e) => setUseAutoTime(e.target.checked)}
-            />
-            Auto ({getQuizMinutes(questionCount)} mins)
-          </label>
+          <select
+            className="qcSelect"
+            value={questionCount}
+            onChange={(e) => setQuestionCount(Number(e.target.value))}
+          >
+            {[5, 10, 15, 20, 30, 60].map((n) => (
+              <option key={n} value={n}>
+                {n} questions
+              </option>
+            ))}
+          </select>
+        </div>
 
-          {!useAutoTime && (
-            <input
-              type="number"
-              min="1"
-              value={customMinutes}
-              onChange={(e) => setCustomMinutes(e.target.value)}
-              style={{ width: 90 }}
-            />
-          )}
+        <div className="qcSection">
+          <label className="qcLabel">Timer</label>
+
+          <div className="qcTimerBlock">
+            <label className="qcToggle">
+              <input
+                type="checkbox"
+                checked={useAutoTime}
+                onChange={(e) => setUseAutoTime(e.target.checked)}
+              />
+              <span className="qcToggleSlider" />
+              <span className="qcToggleText">
+                Auto ({getQuizMinutes(questionCount)} mins)
+              </span>
+            </label>
+
+            {!useAutoTime && (
+              <div className="qcCustomTime">
+                <input
+                  className="qcNumber"
+                  type="number"
+                  min="1"
+                  value={customMinutes}
+                  onChange={(e) => setCustomMinutes(e.target.value)}
+                />
+                <span className="qcUnit">mins</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

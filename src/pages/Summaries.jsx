@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { loadState } from "../lib/storage";
+import "./Summaries.css";
 
 function getSetIdFromHash() {
   const raw = window.location.hash || "";
@@ -13,6 +14,7 @@ function getSetIdFromHash() {
 export default function Summaries() {
   const [state, setState] = useState(() => loadState());
   const [openSetId, setOpenSetId] = useState("");
+  const [copiedId, setCopiedId] = useState("");
 
   useEffect(() => {
     function syncFromStorage() {
@@ -25,6 +27,12 @@ export default function Summaries() {
     window.addEventListener("hashchange", syncFromStorage);
     return () => window.removeEventListener("hashchange", syncFromStorage);
   }, []);
+
+  useEffect(() => {
+    if (!copiedId) return;
+    const t = setTimeout(() => setCopiedId(""), 1400);
+    return () => clearTimeout(t);
+  }, [copiedId]);
 
   const quizSets = useMemo(() => state.quizSets || [], [state.quizSets]);
 
@@ -43,49 +51,54 @@ export default function Summaries() {
   }, [summarizedSets, openSetId]);
 
   return (
-    <div className="card">
-      <h2 className="sectionTitle">Summaries</h2>
-      <p className="muted">
-        All generated summaries are saved locally in this browser.
-      </p>
+    <div className="sumPage">
+      <section className="sumCard card">
+        <header className="sumHeader">
+          <div>
+            <div className="sumBadge">Summaries</div>
+            <h2 className="sumTitle">Your AI Study Notes</h2>
+            <p className="sumSub">
+              All generated summaries are saved locally in this browser.
+            </p>
+          </div>
 
-      <div
-        style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}
-      >
-        <button
-          className="navBtn"
-          type="button"
-          onClick={() => (window.location.hash = "#/quiz")}
-        >
-          Back to Quiz Builder
-        </button>
-      </div>
+          <div className="sumActions">
+            <button
+              className="sumGhost"
+              type="button"
+              onClick={() => (window.location.hash = "#/quiz")}
+            >
+              Back to Quiz Builder
+            </button>
+          </div>
+        </header>
 
-      <div style={{ marginTop: 14 }}>
         {summarizedSets.length === 0 ? (
-          <p className="muted">
-            No summaries yet. Go to Quiz Builder and click “Generate Summary”.
-          </p>
+          <div className="sumEmpty">
+            <div className="sumEmptyIcon" aria-hidden="true" />
+            <div>
+              <div className="sumEmptyTitle">No summaries yet</div>
+              <div className="sumEmptySub">
+                Go to Quiz Builder and click “Generate Summary”.
+              </div>
+            </div>
+          </div>
         ) : (
-          <div style={{ display: "grid", gap: 12 }}>
+          <div className="sumGrid">
             {summarizedSets.map((s) => (
-              <div key={s.id} className="card" style={{ padding: 12 }}>
-                <div style={{ fontWeight: 800 }}>{s.title}</div>
-
-                <div className="muted" style={{ marginTop: 6 }}>
-                  Summary ready
+              <article key={s.id} className="sumItem">
+                <div className="sumItemTop">
+                  <div className="sumItemTitle">{s.title}</div>
+                  <div className="sumReady">Ready</div>
                 </div>
 
-                <div
-                  style={{
-                    marginTop: 10,
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                  }}
-                >
+                <div className="sumHint">
+                  Clean, structured notes from your uploaded material.
+                </div>
+
+                <div className="sumItemActions">
                   <button
-                    className="primaryBtn"
+                    className="sumPrimary"
                     type="button"
                     onClick={() => setOpenSetId(s.id)}
                   >
@@ -93,75 +106,80 @@ export default function Summaries() {
                   </button>
 
                   <button
-                    className="navBtn"
+                    className="sumGhost"
                     type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(s.summary || "");
-                      alert("Summary copied ✅");
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(s.summary || "");
+                        setCopiedId(s.id);
+                      } catch {
+                        // Fallback: keep UI calm even if clipboard fails
+                        setCopiedId(s.id);
+                      }
                     }}
                   >
                     Copy
                   </button>
+
+                  {copiedId === s.id && (
+                    <span className="sumCopied">Copied ✅</span>
+                  )}
                 </div>
-              </div>
+              </article>
             ))}
           </div>
         )}
-      </div>
+      </section>
 
       {openSet && (
         <div
+          className="sumOverlay"
           role="dialog"
           aria-modal="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.55)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 9999,
-          }}
+          aria-label="Summary viewer"
           onClick={() => setOpenSetId("")}
         >
-          <div
-            className="card"
-            style={{
-              width: "min(980px, 100%)",
-              maxHeight: "min(85vh, 900px)",
-              overflow: "auto",
-              padding: 16,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 10,
-              }}
-            >
+          <div className="sumModal" onClick={(e) => e.stopPropagation()}>
+            <header className="sumModalHeader">
               <div>
-                <div style={{ fontWeight: 900, fontSize: 18 }}>
-                  {openSet.title}
-                </div>
-                <div className="muted" style={{ marginTop: 4 }}>
-                  Summary
-                </div>
+                <div className="sumModalTitle">{openSet.title}</div>
+                <div className="sumModalSub">Summary</div>
               </div>
 
-              <button
-                className="navBtn"
-                type="button"
-                onClick={() => setOpenSetId("")}
-              >
-                Close
-              </button>
-            </div>
+              <div className="sumModalActions">
+                <button
+                  className="sumGhost"
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(
+                        openSet.summary || "",
+                      );
+                      setCopiedId(openSet.id);
+                    } catch {
+                      setCopiedId(openSet.id);
+                    }
+                  }}
+                >
+                  Copy
+                </button>
 
-            <div style={{ marginTop: 12, whiteSpace: "pre-line" }}>
-              {openSet.summary}
+                <button
+                  className="sumGhost"
+                  type="button"
+                  onClick={() => setOpenSetId("")}
+                >
+                  Close
+                </button>
+              </div>
+            </header>
+
+            {copiedId === openSet.id && (
+              <div className="sumToast">Copied ✅</div>
+            )}
+
+            <div className="sumModalBody">
+              <div className="sumText">{openSet.summary}</div>
             </div>
           </div>
         </div>

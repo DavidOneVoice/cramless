@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadState, saveState } from "../lib/storage";
 import { useCountdown } from "../hooks/useCountdown";
-import { getQuizMinutes } from "../utils/quizTime";
 import PracticeMode from "../components/quiz/PracticeMode";
+import { API_BASE } from "../lib/api";
+import "./CBTRoom.css";
 
+// -------------------- helpers --------------------
 function getQueryParam(name) {
   const hash = window.location.hash || "";
   const q = hash.split("?")[1] || "";
   const params = new URLSearchParams(q);
   return params.get(name) || "";
 }
+
+function getIntParam(name, fallback) {
+  const v = Number(getQueryParam(name));
+  return Number.isFinite(v) && v > 0 ? Math.floor(v) : fallback;
+}
+// ------------------------------------------------
 
 export default function CBTRoom() {
   const [state, setState] = useState(() => loadState());
@@ -37,6 +45,7 @@ export default function CBTRoom() {
     [quizSets, activeSetId],
   );
 
+  // Auto-finish if timer hits 0
   useEffect(() => {
     if (activeSetId && isRunning === false && secondsLeft === 0) {
       if (!showResult) setShowResult(true);
@@ -89,9 +98,9 @@ export default function CBTRoom() {
     total,
     answers,
     questionsSnapshot,
+    minutesPlanned,
   }) {
     const takenAt = new Date().toISOString();
-    const minutesPlanned = getQuizMinutes(total);
 
     const attempt = {
       id: crypto.randomUUID(),
@@ -125,7 +134,7 @@ export default function CBTRoom() {
       setGenerating(true);
       setError("Generating quiz with AI…");
 
-      const r = await fetch("http://localhost:5050/api/generate-mcqs", {
+      const r = await fetch(`${API_BASE}/api/generate-mcqs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -174,7 +183,6 @@ export default function CBTRoom() {
         return [];
       }
 
-      // Save questions + promptHistory
       setState((prev) => ({
         ...prev,
         quizSets: (prev.quizSets || []).map((set) => {
@@ -204,9 +212,9 @@ export default function CBTRoom() {
     }
   }
 
+  // Prevent double-start for same (setId|count|mins)
   const startedRef = useRef("");
 
-  // ✅ Auto-start when entering CBT room
   useEffect(() => {
     const setId = getQueryParam("setId");
     if (!setId) {
@@ -214,21 +222,21 @@ export default function CBTRoom() {
       return;
     }
 
-    if (startedRef.current === setId) return;
-    startedRef.current = setId;
+    const count = getIntParam("count", 10);
+    const mins = getIntParam("mins", count);
+
+    const key = `${setId}:${count}:${mins}`;
+    if (startedRef.current === key) return;
+    startedRef.current = key;
 
     (async () => {
-      const count = Math.max(1, Number(getQueryParam("count") || 10));
-
       const questions = await generateWithAI(setId, count);
       if (!questions.length) return;
 
-      const mins = getQuizMinutes(count);
       start(mins * 60);
       startPractice(setId);
 
-      // clean URL
-      window.location.hash = `#/cbt?setId=${setId}&count=${count}`;
+      window.location.hash = `#/cbt?setId=${setId}&count=${count}&mins=${mins}`;
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.quizSets]);
@@ -236,46 +244,61 @@ export default function CBTRoom() {
   async function onRetake() {
     if (!activeSetId) return;
 
-    const count = Math.max(1, Number(getQueryParam("count") || 10));
+    const count = getIntParam("count", 10);
+    const mins = getIntParam("mins", count);
+
     const questions = await generateWithAI(activeSetId, count);
     if (!questions.length) return;
 
-    const mins = getQuizMinutes(count);
     start(mins * 60);
     startPractice(activeSetId);
   }
 
+  const count = getIntParam("count", 10);
+  const mins = getIntParam("mins", count);
+
   if (!activeSetId || !activeSet) {
     return (
-      <div className="card">
-        <h2 className="sectionTitle">CBT Room</h2>
-        <p className="muted">
-          {error || (generating ? "Preparing your quiz…" : "Loading…")}
-        </p>
+      <section className="cbtShell card">
+        <div className="cbtHeaderOnly">
+          <h2 className="cbtTitle">CBT Room</h2>
+          <p className="cbtMuted">
+            {error || (generating ? "Preparing your quiz…" : "Loading…")}
+          </p>
+        </div>
+
         <button
-          className="navBtn"
+          className="cbtBack"
           type="button"
           onClick={() => (window.location.hash = "#/quizSets")}
         >
           Back to Quiz Sets
         </button>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div>
-      <div className="card" style={{ marginBottom: 14 }}>
-        <h2 className="sectionTitle">CBT Room</h2>
-        <p className="muted" style={{ marginTop: 6 }}>
-          <strong>{activeSet.title}</strong>
-        </p>
-        {error && (
-          <div className="errorBox" style={{ marginTop: 10 }}>
-            {error}
+    <div className="cbtPage">
+      <section className="cbtHud">
+        <div className="cbtHudLeft">
+          <div className="cbtBadge">CBT Room</div>
+          <div className="cbtSetTitle">{activeSet.title}</div>
+          <div className="cbtMeta">
+            <span className="cbtMetaItem">{count} questions</span>
+            <span className="cbtMetaDot" aria-hidden="true" />
+            <span className="cbtMetaItem">{mins} mins</span>
           </div>
-        )}
-      </div>
+        </div>
+
+        <div className="cbtHudRight">
+          {error && <div className="cbtError">{error}</div>}
+          <div className="cbtHint">
+            Timer uses <strong>{mins} mins</strong>. Auto mode = questions →
+            minutes.
+          </div>
+        </div>
+      </section>
 
       <PracticeMode
         activeSet={activeSet}
@@ -300,6 +323,7 @@ export default function CBTRoom() {
             total: (activeSet.questions || []).length,
             answers: attemptAnswers,
             questionsSnapshot: activeSet.questions || [],
+            minutesPlanned: mins,
           });
         }}
       />

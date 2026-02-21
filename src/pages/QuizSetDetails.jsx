@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { loadState, saveState } from "../lib/storage";
 import ConfirmModal from "../components/common/ConfirmModal";
+import QuizSetupModal from "../components/quiz/QuizSetupModal";
+import { API_BASE } from "../lib/api";
+import "./QuizSetDetails.css";
 
 function getQueryParam(name) {
   const hash = window.location.hash || "";
@@ -20,7 +23,7 @@ function fmtDate(iso) {
 export default function QuizSetDetails() {
   const [state, setState] = useState(() => loadState());
   const setId = getQueryParam("setId");
-
+  const [setupOpen, setSetupOpen] = useState(false);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -51,7 +54,6 @@ export default function QuizSetDetails() {
   async function generateSummary() {
     if (!set) return;
 
-    // if already exists, just open it
     if (set.summary) {
       goToSummaries();
       return;
@@ -61,7 +63,7 @@ export default function QuizSetDetails() {
       setBusy(true);
       setError("");
 
-      const r = await fetch("http://localhost:5050/api/summarize", {
+      const r = await fetch(`${API_BASE}/api/summarize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: set.title, sourceText: set.sourceText }),
@@ -101,9 +103,8 @@ export default function QuizSetDetails() {
     }
   }
 
-  async function takeQuiz() {
-    if (!set) return;
-    window.location.hash = `#/cbt?setId=${setId}&count=10`;
+  function takeQuiz() {
+    setSetupOpen(true);
   }
 
   function clearAttempts() {
@@ -126,140 +127,168 @@ export default function QuizSetDetails() {
 
   if (!setId) {
     return (
-      <div className="card">
-        <h2 className="sectionTitle">Quiz Set Details</h2>
-        <p className="muted">No set selected.</p>
-        <button className="navBtn" type="button" onClick={() => go("quizSets")}>
+      <section className="qsdCard card">
+        <h2 className="qsdTitle">Quiz Set Details</h2>
+        <p className="qsdMuted">No set selected.</p>
+        <button
+          className="qsdGhost"
+          type="button"
+          onClick={() => go("quizSets")}
+        >
           Back to Quiz Sets
         </button>
-      </div>
+      </section>
     );
   }
 
   if (!set) {
     return (
-      <div className="card">
-        <h2 className="sectionTitle">Quiz Set Details</h2>
-        <p className="muted">Set not found (maybe deleted).</p>
-        <button className="navBtn" type="button" onClick={() => go("quizSets")}>
+      <section className="qsdCard card">
+        <h2 className="qsdTitle">Quiz Set Details</h2>
+        <p className="qsdMuted">Set not found (maybe deleted).</p>
+        <button
+          className="qsdGhost"
+          type="button"
+          onClick={() => go("quizSets")}
+        >
           Back to Quiz Sets
         </button>
-      </div>
+      </section>
     );
   }
 
+  const questionCount = (set.questions || []).length;
+
   return (
-    <div className="card">
-      <h2 className="sectionTitle">{set.title}</h2>
+    <div className="qsdPage">
+      <section className="qsdCard card">
+        <div className="qsdHeader">
+          <div>
+            <div className="qsdBadge">Quiz Set</div>
+            <h2 className="qsdSetTitle">{set.title}</h2>
 
-      {/* Status */}
-      <div className="muted" style={{ marginTop: 6 }}>
-        {(set.questions || []).length
-          ? `${set.questions.length} questions ready`
-          : "No questions yet"}
-        {set.summary ? " • Summary ready" : " • No summary yet"}
-        {attempts.length ? ` • ${attempts.length} attempt(s)` : ""}
-        {attempts.length ? ` • Best: ${best}/${lastAttempt?.total || "-"}` : ""}
-        {lastAttempt?.takenAt ? ` • Last: ${fmtDate(lastAttempt.takenAt)}` : ""}
-      </div>
+            <div className="qsdStatusRow">
+              <span className={questionCount ? "qsdPill ok" : "qsdPill"}>
+                {questionCount
+                  ? `${questionCount} questions ready`
+                  : "No questions yet"}
+              </span>
 
-      {error && (
-        <div className="errorBox" style={{ marginTop: 12 }}>
-          {error}
+              <span className={set.summary ? "qsdPill ok2" : "qsdPill"}>
+                {set.summary ? "Summary ready" : "No summary yet"}
+              </span>
+
+              <span className="qsdPill">
+                {attempts.length
+                  ? `${attempts.length} attempt(s)`
+                  : "No attempts yet"}
+              </span>
+
+              {attempts.length ? (
+                <span className="qsdPill">
+                  Best: <strong>{best}</strong>/{lastAttempt?.total || "-"}
+                </span>
+              ) : null}
+
+              {lastAttempt?.takenAt ? (
+                <span className="qsdPill">
+                  Last: <strong>{fmtDate(lastAttempt.takenAt)}</strong>
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="qsdActions">
+            <button
+              className="qsdPrimary"
+              type="button"
+              onClick={takeQuiz}
+              disabled={busy}
+            >
+              Take Quiz
+            </button>
+
+            <button
+              className="qsdGhost"
+              type="button"
+              onClick={generateSummary}
+              disabled={busy}
+            >
+              {busy
+                ? "Working..."
+                : set.summary
+                  ? "View Summary"
+                  : "Generate Summary"}
+            </button>
+
+            {attempts.length > 0 && (
+              <button
+                className="qsdDanger"
+                type="button"
+                onClick={clearAttempts}
+                disabled={busy}
+              >
+                Clear Attempts
+              </button>
+            )}
+
+            <button
+              className="qsdGhost"
+              type="button"
+              onClick={() => go("quizSets")}
+              disabled={busy}
+            >
+              Back to Quiz Sets
+            </button>
+          </div>
         </div>
-      )}
 
-      {/* Actions */}
-      <div
-        style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}
-      >
-        <button
-          className="primaryBtn"
-          type="button"
-          onClick={takeQuiz}
-          disabled={busy}
-        >
-          Take Quiz
-        </button>
+        {error && <div className="qsdError">{error}</div>}
+      </section>
 
-        <button
-          className="navBtn"
-          type="button"
-          onClick={generateSummary}
-          disabled={busy}
-        >
-          {busy
-            ? "Working..."
-            : set.summary
-              ? "View Summary"
-              : "Generate Summary"}
-        </button>
-
-        {attempts.length > 0 && (
-          <button
-            className="dangerBtn"
-            type="button"
-            onClick={clearAttempts}
-            disabled={busy}
-          >
-            Clear Attempts
-          </button>
-        )}
-
-        <button
-          className="navBtn"
-          type="button"
-          onClick={() => go("quizSets")}
-          disabled={busy}
-        >
-          Back to Quiz Sets
-        </button>
-      </div>
-
-      {/* Attempts */}
-      <div className="card" style={{ marginTop: 14, padding: 12 }}>
-        <div style={{ fontWeight: 800, marginBottom: 8 }}>Recent Attempts</div>
+      <section className="qsdAttempts">
+        <div className="qsdAttemptsTop">
+          <div className="qsdAttemptsTitle">Recent Attempts</div>
+          <div className="qsdAttemptsHint">Stored locally in this browser</div>
+        </div>
 
         {attempts.length === 0 ? (
-          <p className="muted">No attempts yet.</p>
+          <div className="qsdEmpty">
+            <div className="qsdEmptyIcon" aria-hidden="true" />
+            <div>
+              <div className="qsdEmptyTitle">No attempts yet</div>
+              <div className="qsdEmptySub">
+                Take a quiz to start tracking your progress.
+              </div>
+            </div>
+          </div>
         ) : (
-          <div style={{ display: "grid", gap: 10 }}>
+          <div className="qsdAttemptGrid">
             {attempts.slice(0, 4).map((a, idx) => (
-              <div
-                key={a.id}
-                style={{
-                  border: "1px solid #eee",
-                  borderRadius: 12,
-                  padding: 10,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div className="muted">
-                  <div style={{ fontWeight: 700, opacity: 0.9 }}>
+              <div className="qsdAttemptCard" key={a.id}>
+                <div className="qsdAttemptLeft">
+                  <div className="qsdAttemptLabel">
                     Attempt #{attempts.length - idx}
                   </div>
-                  <div>{fmtDate(a.takenAt)}</div>
+                  <div className="qsdAttemptDate">{fmtDate(a.takenAt)}</div>
                 </div>
 
-                <div className="muted">
-                  Score:{" "}
-                  <strong>
-                    {a.score} / {a.total}
-                  </strong>{" "}
-                  • Time: <strong>{a.minutesPlanned || "-"} mins</strong>
+                <div className="qsdAttemptRight">
+                  <div className="qsdAttemptScore">
+                    Score:{" "}
+                    <strong>
+                      {a.score} / {a.total}
+                    </strong>
+                  </div>
+                  <div className="qsdAttemptTime">
+                    Time: <strong>{a.minutesPlanned || "-"} mins</strong>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
-
-        <p className="footerNote" style={{ marginTop: 10 }}>
-          Attempts are stored locally in this browser.
-        </p>
-      </div>
+      </section>
 
       <ConfirmModal
         open={confirmClearOpen}
@@ -270,6 +299,18 @@ export default function QuizSetDetails() {
         danger
         onCancel={() => setConfirmClearOpen(false)}
         onConfirm={handleClearConfirmed}
+      />
+
+      <QuizSetupModal
+        open={setupOpen}
+        title="Take Quiz"
+        setTitle={set.title}
+        defaultCount={10}
+        onClose={() => setSetupOpen(false)}
+        onStart={({ count, minutes }) => {
+          setSetupOpen(false);
+          window.location.hash = `#/cbt?setId=${setId}&count=${count}&mins=${minutes}`;
+        }}
       />
     </div>
   );

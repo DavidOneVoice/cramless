@@ -3,6 +3,7 @@ import { loadState, saveState } from "../lib/storage";
 import { extractTextFromPdf } from "../lib/pdfText";
 import mammoth from "mammoth";
 import QuizBuilderForm from "../components/quiz/QuizBuilderForm";
+import "./QuizBuilder.css";
 
 export default function QuizBuilder() {
   const [state, setState] = useState(() => loadState());
@@ -120,12 +121,11 @@ export default function QuizBuilder() {
     setSelectedCourseId("");
     setError("");
 
-    // ✅ Redirect user to Quiz Sets list
     window.location.hash = "#/quizSets";
   }
 
   return (
-    <div>
+    <div className="quizBuilderPage">
       <QuizBuilderForm
         title={title}
         setTitle={setTitle}
