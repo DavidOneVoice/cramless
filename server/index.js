@@ -6,19 +6,24 @@ import OpenAI from "openai";
 import process from "process";
 import crypto from "crypto";
 
-console.log("Loaded key:", process.env.OPENAI_API_KEY?.slice(0, 10));
-
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.FRONTEND_ORIGIN
+      ? process.env.FRONTEND_ORIGIN.split(",").map((s) => s.trim())
+      : true,
+  }),
+);
 app.use(express.json({ limit: "4mb" }));
 app.use((req, res, next) => {
   console.log("INCOMING:", req.method, req.url);
   next();
 });
 
+app.get("/health", (req, res) => res.json({ ok: true }));
+
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-/** -------- Similarity helpers (hard anti-repeat) -------- */
 function tokenize(s) {
   return String(s || "")
     .toLowerCase()
@@ -43,7 +48,6 @@ function isTooSimilar(prompt, list, threshold) {
   return list.some((old) => jaccard(prompt, old) >= threshold);
 }
 
-/** Pick diverse prompts from a pool */
 function selectDiverseQuestions(pool, avoidList, finalCount) {
   const selected = [];
   const chosenPrompts = [];
@@ -51,10 +55,8 @@ function selectDiverseQuestions(pool, avoidList, finalCount) {
   for (const q of pool) {
     if (selected.length >= finalCount) break;
 
-    // Stronger avoid filtering (blocks paraphrases too)
     if (avoidList.length && isTooSimilar(q.prompt, avoidList, 0.45)) continue;
 
-    // Also avoid duplicates inside same quiz
     if (chosenPrompts.length && isTooSimilar(q.prompt, chosenPrompts, 0.55))
       continue;
 
@@ -65,7 +67,6 @@ function selectDiverseQuestions(pool, avoidList, finalCount) {
   return selected;
 }
 
-/** -------- Routes -------- */
 app.post("/api/generate-mcqs", async (req, res) => {
   try {
     const {
@@ -84,8 +85,6 @@ app.post("/api/generate-mcqs", async (req, res) => {
     }
 
     const safeCount = Math.max(5, Math.min(Number(count) || 10, 25));
-
-    // IMPORTANT: pool bigger than final count
     const poolCount = Math.min(40, safeCount * 4);
 
     const safeAvoid = Array.isArray(avoid)
@@ -109,7 +108,6 @@ app.post("/api/generate-mcqs", async (req, res) => {
 
     let finalQuestions = [];
 
-    // Retry up to 3 attempts (more realistic)
     for (let attempt = 0; attempt < 3; attempt++) {
       const attemptNonce = attempt === 0 ? baseNonce : crypto.randomUUID();
 
@@ -172,7 +170,7 @@ ${sourceText}
       try {
         data = JSON.parse(rawText);
       } catch {
-        continue; // retry
+        continue;
       }
 
       const rawQs = Array.isArray(data.questions) ? data.questions : [];
@@ -198,7 +196,6 @@ ${sourceText}
 
       if (!pool.length) continue;
 
-      // Select diverse set from pool
       const selected = selectDiverseQuestions(pool, safeAvoid, safeCount);
 
       if (selected.length >= Math.min(5, safeCount)) {
@@ -267,6 +264,8 @@ ${sourceText}
   }
 });
 
-app.listen(5050, () => {
-  console.log("AI server running on http://localhost:5050");
+const PORT = process.env.PORT || 5050;
+
+app.listen(PORT, () => {
+  console.log(`AI server running on port ${PORT}`);
 });

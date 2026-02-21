@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { resetState } from "./lib/storage";
 import "./App.css";
-
+import QuizSetDetails from "./pages/QuizSetDetails";
 import Start from "./pages/Start";
 import Planner from "./pages/Planner";
 import Schedule from "./pages/Schedule";
 import QuizBuilder from "./pages/QuizBuilder";
 import Summaries from "./pages/Summaries";
 import QuizSets from "./pages/QuizSets";
+import CBTRoom from "./pages/CBTRoom";
 
 const PAGES = {
   start: { label: "Start", component: Start },
@@ -16,18 +17,18 @@ const PAGES = {
   quiz: { label: "Quiz Builder", component: QuizBuilder },
   quizSets: { label: "Quiz Sets", component: QuizSets },
   summaries: { label: "Summaries", component: Summaries },
+  quizSet: { label: "Quiz Set", component: QuizSetDetails },
+  cbt: { label: "CBT Room", component: CBTRoom },
 };
 
 function normalizeHashKey(rawHash) {
-  // Example rawHash: "#/quizSets?x=1" or "#/quizsets/" etc.
   const raw = rawHash || "#/start";
 
-  let key = raw.replace(/^#\/?/, ""); // remove leading "#/" or "#"
-  key = key.split("?")[0].trim(); // remove query
-  key = key.replace(/\/+$/, ""); // remove trailing slash(es)
+  let key = raw.replace(/^#\/?/, "");
+  key = key.split("?")[0].trim();
+  key = key.replace(/\/+$/, "");
   const lower = key.toLowerCase();
 
-  // aliases (accept common variations)
   const ALIASES = {
     "": "start",
     start: "start",
@@ -45,12 +46,19 @@ function normalizeHashKey(rawHash) {
     summary: "summaries",
 
     quizsets: "quizSets",
-    quizset: "quizSets",
     "quiz-sets": "quizSets",
-    "quiz-set": "quizSets",
+
+    quizset: "quizSet",
+    "quiz-set": "quizSet",
+    quizsetdetails: "quizSet",
+    "quiz-set-details": "quizSet",
+    cbt: "cbt",
+    practice: "cbt",
+    exam: "cbt",
+    cbtr: "cbt",
   };
 
-  return ALIASES[lower] || key; // if it's already "quizSets", keep it
+  return ALIASES[lower] || key;
 }
 
 function getHashPage() {

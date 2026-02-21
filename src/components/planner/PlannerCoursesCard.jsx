@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ConfirmModal from "../common/ConfirmModal";
 
 export default function PlannerCoursesCard({
   courses = [],
@@ -118,73 +119,19 @@ export default function PlannerCoursesCard({
         important courses.
       </p>
 
-      {/* ✅ Fancy Confirm Modal */}
-      {showClearConfirm && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setShowClearConfirm(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.55)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 9999,
-          }}
-        >
-          <div
-            className="card"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(520px, 100%)",
-              padding: 16,
-            }}
-          >
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Clear schedule?</div>
-
-            <p className="muted" style={{ marginTop: 8, lineHeight: 1.5 }}>
-              This will delete your generated timetable. Your courses and
-              quizzes will remain.
-            </p>
-
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                justifyContent: "flex-end",
-                flexWrap: "wrap",
-                marginTop: 14,
-              }}
-            >
-              <button
-                type="button"
-                className="navBtn"
-                onClick={() => setShowClearConfirm(false)}
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                className="dangerBtn"
-                onClick={() => {
-                  onClearSchedule?.();
-                  setShowClearConfirm(false);
-                }}
-              >
-                Yes, Clear
-              </button>
-            </div>
-
-            <p className="footerNote" style={{ marginTop: 10 }}>
-              Tip: Click outside this box to close.
-            </p>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        open={showClearConfirm}
+        title="Clear schedule?"
+        message="This will delete your generated timetable. Your courses and quizzes will remain."
+        confirmText="Yes, clear"
+        cancelText="Cancel"
+        danger
+        onCancel={() => setShowClearConfirm(false)}
+        onConfirm={() => {
+          onClearSchedule?.();
+          setShowClearConfirm(false);
+        }}
+      />
     </div>
   );
 }
