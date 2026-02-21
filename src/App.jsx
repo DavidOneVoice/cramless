@@ -100,7 +100,7 @@ export default function App() {
             </span>
           </button>
 
-          <p className="subtitle">A Smart Study Planner &amp; Quiz Builder</p>
+          <p className="subtitle">A Smart Study Planner &amp; Quiz Builder.</p>
         </div>
 
         <button
