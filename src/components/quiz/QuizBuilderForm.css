@@ -52,6 +52,7 @@
 .qbBadges {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .qbChip {
@@ -100,6 +101,7 @@
   font-weight: 800;
   letter-spacing: 0.2px;
   color: rgba(255, 255, 255, 0.86);
+  margin-top: 2rem;
 }
 
 .qbInput,
@@ -133,6 +135,15 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+.qbInput::placeholder,
+.qbTextarea::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.qbSelect option {
+  color: black;
+}
+
 .qbHelp {
   margin: 0;
   color: rgba(255, 255, 255, 0.68);
@@ -140,36 +151,122 @@
   line-height: 1.5;
 }
 
+/* ---------- Premium Upload Dropzone ---------- */
 .qbUpload {
   position: relative;
-  border-radius: var(--radius);
-  border: 1px dashed rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.03);
-  padding: 14px;
   overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+
+  width: 100%;
+  min-height: 170px;
+  padding: 26px;
+
+  border-radius: 22px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+
+  background:
+    radial-gradient(
+      800px 300px at 10% 0%,
+      rgba(63, 61, 255, 0.18),
+      transparent 60%
+    ),
+    radial-gradient(
+      800px 300px at 90% 100%,
+      rgba(0, 194, 168, 0.15),
+      transparent 60%
+    ),
+    rgba(255, 255, 255, 0.04);
+
+  backdrop-filter: blur(18px);
+
+  cursor: pointer;
+
+  transition:
+    border 240ms ease,
+    background 240ms ease,
+    transform 200ms ease,
+    box-shadow 240ms ease;
+}
+
+.qbUpload:hover {
+  transform: translateY(-3px);
+  border-color: rgba(63, 61, 255, 0.45);
+  box-shadow: 0 25px 50px rgba(63, 61, 255, 0.18);
+}
+
+.qbUpload.dragging {
+  border-color: rgba(0, 194, 168, 0.65);
+  background:
+    radial-gradient(
+      800px 300px at 10% 0%,
+      rgba(63, 61, 255, 0.28),
+      transparent 60%
+    ),
+    radial-gradient(
+      800px 300px at 90% 100%,
+      rgba(0, 194, 168, 0.25),
+      transparent 60%
+    ),
+    rgba(255, 255, 255, 0.06);
+  box-shadow: 0 30px 60px rgba(0, 194, 168, 0.22);
 }
 
 .qbFile {
-  width: 100%;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
   cursor: pointer;
 }
 
+/* Icon */
+.qbUploadIcon {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: linear-gradient(
+    135deg,
+    rgba(63, 61, 255, 0.85),
+    rgba(0, 194, 168, 0.85)
+  );
+  box-shadow: 0 20px 40px rgba(63, 61, 255, 0.25);
+  position: relative;
+}
+
+.qbUploadIcon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 18px;
+  height: 18px;
+  border-left: 3px solid white;
+  border-bottom: 3px solid white;
+  transform: rotate(45deg) translateY(-2px);
+}
+
 .qbUploadHint {
-  margin-top: 10px;
+  margin: 0;
+  text-align: center;
   display: grid;
   gap: 4px;
 }
 
 .qbUploadTitle {
-  font-weight: 900;
-  font-size: 13px;
-  letter-spacing: 0.2px;
+  font-weight: 1000;
+  font-size: 14px;
+  letter-spacing: -0.2px;
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .qbUploadSub {
-  color: rgba(255, 255, 255, 0.68);
-  font-size: 12px;
-  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12.5px;
+  line-height: 1.55;
 }
 
 .qbFileInfo {

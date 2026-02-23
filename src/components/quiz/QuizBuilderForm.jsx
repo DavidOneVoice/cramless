@@ -1,3 +1,4 @@
+import { useState } from "react";
 import "./QuizBuilderForm.css";
 
 export default function QuizBuilderForm({
@@ -14,6 +15,8 @@ export default function QuizBuilderForm({
   selectedCourseId = "",
   setSelectedCourseId = () => {},
 }) {
+  const [isDragging, setIsDragging] = useState(false);
+
   return (
     <section className="qbCard">
       <header className="qbHeader">
@@ -71,17 +74,32 @@ export default function QuizBuilderForm({
         <div className="qbField">
           <label className="qbLabel">Upload course material</label>
 
-          <div className="qbUpload">
+          <div
+            className={`qbUpload ${isDragging ? "dragging" : ""}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+              onFileUpload?.({ target: { files: e.dataTransfer.files } });
+            }}
+          >
             <input
               className="qbFile"
               type="file"
               accept=".pdf,.docx,.txt"
               onChange={onFileUpload}
             />
+
+            <div className="qbUploadIcon" aria-hidden="true" />
+
             <div className="qbUploadHint">
-              <div className="qbUploadTitle">PDF / DOCX / TXT</div>
+              <div className="qbUploadTitle">Upload your study material</div>
               <div className="qbUploadSub">
-                Tip: If your PDF is scanned, paste text instead (OCR later).
+                PDF / DOCX / TXT — Drag & drop or click to browse
               </div>
             </div>
           </div>

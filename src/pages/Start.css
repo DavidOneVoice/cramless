@@ -360,3 +360,32 @@
     transform: translateY(0);
   }
 }
+
+@media (max-width: 1200px) {
+  .startHeroArt {
+    /* allows the mini cards to sit nicely and not float around */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    align-items: flex-start;
+    padding-left: 2rem;
+    gap: 12px;
+  }
+
+  .miniCard,
+  .miniCard2 {
+    position: static !important; /* kill absolute positioning */
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+
+    width: min(360px, 100%); /* nice fixed feel but responsive */
+  }
+}
+@media (max-width: 1200px) {
+  .orb,
+  .gridlines {
+    position: absolute; /* keep them as background layers */
+  }
+}

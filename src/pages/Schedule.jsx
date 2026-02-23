@@ -221,16 +221,32 @@ export default function Schedule() {
                   <div>Type</div>
                 </div>
 
-                {filtered.map((s, idx) => (
-                  <div className="row schedule" key={idx}>
-                    <div>{s.date}</div>
-                    <div>
-                      {fromMinutes(s.startMinutes)}–{fromMinutes(s.endMinutes)}
+                {filtered.map((s, idx) => {
+                  const todayIso = new Date().toISOString().slice(0, 10);
+                  const isToday = s.date === todayIso;
+
+                  const isPast = s.date < todayIso;
+
+                  return (
+                    <div
+                      className={[
+                        "row",
+                        "schedule",
+                        isToday ? "isToday" : "",
+                        isPast ? "isPast" : "",
+                      ].join(" ")}
+                      key={idx}
+                    >
+                      <div>{s.date}</div>
+                      <div>
+                        {fromMinutes(s.startMinutes)}–
+                        {fromMinutes(s.endMinutes)}
+                      </div>
+                      <div>{s.courseName}</div>
+                      <div>{s.type}</div>
                     </div>
-                    <div>{s.courseName}</div>
-                    <div>{s.type}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

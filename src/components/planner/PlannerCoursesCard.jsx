@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import ConfirmModal from "../common/ConfirmModal";
 import "./PlannerCoursesCard.css";
 
@@ -8,14 +8,41 @@ export default function PlannerCoursesCard({
   takingQuizSetId,
   onRemoveCourse,
   onTakeQuizFromPlanner,
-
+  onRemoveExpiredCourses,
   quizError,
   scheduleError,
-
   onGenerateSchedule,
   onClearSchedule,
 }) {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [hideExpired, setHideExpired] = useState(false);
+  const [showCleanupConfirm, setShowCleanupConfirm] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const expiredIds = useMemo(() => {
+    return new Set(
+      (courses || [])
+        .filter((c) => String(c.examDate || "") < todayIso)
+        .map((c) => c.id),
+    );
+  }, [courses, todayIso]);
+
+  const expiredCount = expiredIds.size;
+
+  const visibleCourses = useMemo(() => {
+    if (!hideExpired) return courses;
+    return (courses || []).filter((c) => !expiredIds.has(c.id));
+  }, [courses, hideExpired, expiredIds]);
+
+  const hasCourses = (courses || []).length > 0;
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2200);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   return (
     <div className="pccCard card">
@@ -29,10 +56,34 @@ export default function PlannerCoursesCard({
         </div>
 
         <div className="pccHeaderActions">
+          {expiredCount > 0 && (
+            <>
+              <label className="pccToggle">
+                <input
+                  type="checkbox"
+                  checked={hideExpired}
+                  onChange={(e) => setHideExpired(e.target.checked)}
+                />
+                Hide expired ({expiredCount})
+              </label>
+
+              <button
+                className="dangerBtn pccDangerSoft"
+                type="button"
+                onClick={() => setShowCleanupConfirm(true)}
+                title="Remove expired courses and their schedule entries"
+              >
+                Clean up expired
+              </button>
+            </>
+          )}
+
           <button
             className="primaryBtn"
             type="button"
             onClick={onGenerateSchedule}
+            disabled={!hasCourses}
+            title={!hasCourses ? "Add at least one course first" : ""}
           >
             Generate Schedule
           </button>
@@ -47,7 +98,7 @@ export default function PlannerCoursesCard({
         </div>
       </header>
 
-      {courses.length === 0 ? (
+      {!hasCourses ? (
         <div className="pccEmpty">
           <div className="pccEmptyIcon" aria-hidden="true" />
           <div>
@@ -66,14 +117,27 @@ export default function PlannerCoursesCard({
             <div>Actions</div>
           </div>
 
-          {courses.map((c) => {
-            const courseQuizzes = quizSets.filter((q) => q.courseId === c.id);
+          {visibleCourses.map((c) => {
+            const isExpired = expiredIds.has(c.id);
+            const courseQuizzes = (quizSets || []).filter(
+              (q) => q.courseId === c.id,
+            );
 
             return (
-              <div key={c.id} className="pccCourseBlock">
+              <div
+                key={c.id}
+                className={`pccCourseBlock ${isExpired ? "isExpired" : ""}`}
+              >
                 <div className="row">
-                  <div className="pccCourseName">{c.name}</div>
-                  <div>{c.examDate}</div>
+                  <div className="pccCourseName" title={c.name}>
+                    {c.name}
+                    {isExpired && (
+                      <span className="pccTagExpired">Exam Passed</span>
+                    )}
+                  </div>
+
+                  <div>{c.examDate || "-"}</div>
+
                   <div className="pccPriority">{c.workload}</div>
 
                   <div className="right">
@@ -97,12 +161,15 @@ export default function PlannerCoursesCard({
                           key={q.id}
                           className="navBtn"
                           type="button"
-                          disabled={takingQuizSetId === q.id}
+                          disabled={isExpired || takingQuizSetId === q.id}
                           onClick={() => onTakeQuizFromPlanner(q.id, 10)}
+                          title={isExpired ? "Exam date has passed" : ""}
                         >
-                          {takingQuizSetId === q.id
-                            ? "Generating…"
-                            : `Take Quiz: ${q.title}`}
+                          {isExpired
+                            ? `Exam Passed: ${q.title}`
+                            : takingQuizSetId === q.id
+                              ? "Generating…"
+                              : `Take Quiz: ${q.title}`}
                         </button>
                       ))}
                     </div>
@@ -139,6 +206,28 @@ export default function PlannerCoursesCard({
           setShowClearConfirm(false);
         }}
       />
+
+      <ConfirmModal
+        open={showCleanupConfirm}
+        title="Clean up expired courses?"
+        message="This will remove all courses whose exam date has passed, and also remove their schedule sessions. This cannot be undone."
+        confirmText="Yes, remove expired"
+        cancelText="Cancel"
+        danger
+        onCancel={() => setShowCleanupConfirm(false)}
+        onConfirm={() => {
+          const removed = onRemoveExpiredCourses?.() || 0;
+
+          if (removed > 0) {
+            setToast(
+              `${removed} expired course${removed > 1 ? "s" : ""} removed`,
+            );
+          }
+
+          setShowCleanupConfirm(false);
+        }}
+      />
+      {toast && <div className="pccToast">{toast}</div>}
     </div>
   );
 }

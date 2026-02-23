@@ -93,10 +93,47 @@ export default function Planner() {
       };
     });
   }
+  function removeExpiredCourses() {
+    const todayIso = new Date().toISOString().slice(0, 10);
 
+    let removedCount = 0;
+
+    setState((prev) => {
+      const expiredIds = new Set(
+        (prev.courses || [])
+          .filter((c) => String(c.examDate || "") < todayIso)
+          .map((c) => c.id),
+      );
+
+      removedCount = expiredIds.size;
+
+      if (expiredIds.size === 0) return prev;
+
+      const nextCourses = (prev.courses || []).filter(
+        (c) => !expiredIds.has(c.id),
+      );
+
+      const nextSchedule = (prev.schedule || []).filter(
+        (s) => !expiredIds.has(s.courseId),
+      );
+
+      return {
+        ...prev,
+        courses: nextCourses,
+        schedule: nextSchedule,
+      };
+    });
+
+    return removedCount;
+  }
   function handleGenerateSchedule() {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const activeCourses = (state.courses || []).filter(
+      (c) => String(c.examDate || "") >= todayIso,
+    );
+
     const result = generateSchedule({
-      courses: state.courses || [],
+      courses: activeCourses,
       availability: state.availability || {},
     });
 
@@ -264,6 +301,7 @@ export default function Planner() {
               scheduleError={scheduleError}
               onGenerateSchedule={handleGenerateSchedule}
               onClearSchedule={handleClearSchedule}
+              onRemoveExpiredCourses={removeExpiredCourses}
             />
           )}
         </div>

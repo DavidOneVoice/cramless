@@ -43,6 +43,7 @@ export default function PlannerSetupCard({
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g., CSC 101 - Intro to Computing"
           />
+          <p className="pscHint">Enter your course name</p>
         </div>
 
         <div className="field">
