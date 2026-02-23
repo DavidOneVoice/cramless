@@ -43,7 +43,7 @@ export default function QuizSetsTable({
                   type="button"
                   onClick={() => onOpenSet?.(s.id)}
                 >
-                  Open
+                  CBT Room
                 </button>
 
                 <button

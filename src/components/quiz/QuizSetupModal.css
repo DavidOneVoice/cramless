@@ -2,15 +2,13 @@
   position: fixed;
   inset: 0;
   z-index: 90;
-
+  margin-top: 10rem;
   display: grid;
   place-items: center;
   padding: 18px;
-
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-
   animation: qsmFade 180ms ease both;
 }
 
@@ -20,6 +18,12 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+@media screen and (max-width: 650px) {
+  .qsmOverlay {
+    margin-top: 0rem;
   }
 }
 
@@ -176,6 +180,11 @@
     box-shadow 160ms ease,
     border 160ms ease,
     background 160ms ease;
+}
+
+.qsmSelect option {
+  background: rgba(15, 23, 48, 0.94);
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .qsmSelect:focus {

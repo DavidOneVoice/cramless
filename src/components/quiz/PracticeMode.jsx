@@ -17,11 +17,9 @@ export default function PracticeMode({
   secondsLeft,
   onFinishAttempt,
 }) {
-  // Prevent saving twice for the same attempt
   const savedAttemptRef = useRef(false);
   const lastAttemptKeyRef = useRef("");
 
-  // Reset the "saved" guard whenever a new attempt starts
   useEffect(() => {
     const key = `${activeSetId || ""}:${(activeSet?.questions || []).length}:${String(
       activeSet?.questions?.[0]?.id || "",
@@ -33,7 +31,6 @@ export default function PracticeMode({
     }
   }, [activeSetId, activeSet]);
 
-  // When results show, save attempt once
   useEffect(() => {
     if (!activeSetId) return;
     if (!activeSet) return;
@@ -59,6 +56,9 @@ export default function PracticeMode({
 
   const total = questions.length;
   const progressPct = Math.round(((currentIndex + 1) / total) * 100);
+  const isLast = currentIndex === total - 1;
+  const chosen =
+    selectedAnswer ?? attemptAnswers?.[currentQuestion?.id] ?? null;
 
   return (
     <section className="pmShell">
@@ -130,10 +130,10 @@ export default function PracticeMode({
             <button
               className="pmPrimary"
               type="button"
-              onClick={onNext}
-              disabled={!selectedAnswer}
+              onClick={() => onNext?.(chosen)}
+              disabled={!chosen}
             >
-              Next
+              {isLast ? "Finish" : "Next"}
             </button>
 
             <button className="pmGhost" type="button" onClick={onExit}>

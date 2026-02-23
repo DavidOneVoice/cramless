@@ -74,14 +74,20 @@ export default function CBTRoom() {
     const sid = getQueryParam("setId");
     window.location.hash = sid ? `#/quizSet?setId=${sid}` : "#/quizSets";
   }
-
-  function handleNext() {
+  function handleNext(answerOverride) {
     if (!activeSet) return;
-    if (!selectedAnswer) return;
 
     const q = activeSet.questions[currentIndex];
-    if (selectedAnswer === q.answer) setScore((p) => p + 1);
 
+    // ✅ Use override OR current selectedAnswer OR stored answer
+    const chosen =
+      answerOverride ?? selectedAnswer ?? attemptAnswers?.[q?.id] ?? null;
+
+    if (!chosen) return;
+
+    if (chosen === q.answer) setScore((p) => p + 1);
+
+    // ✅ If this was the last question, finish immediately
     if (currentIndex + 1 >= activeSet.questions.length) {
       setShowResult(true);
       stop();
@@ -132,7 +138,9 @@ export default function CBTRoom() {
 
     try {
       setGenerating(true);
-      setError("Generating quiz with AI…");
+      setError(
+        "Generating quiz questions… This may take 30-60 seconds or more.",
+      );
 
       const r = await fetch(`${API_BASE}/api/generate-mcqs`, {
         method: "POST",
@@ -293,10 +301,6 @@ export default function CBTRoom() {
 
         <div className="cbtHudRight">
           {error && <div className="cbtError">{error}</div>}
-          <div className="cbtHint">
-            Timer uses <strong>{mins} mins</strong>. Auto mode = questions →
-            minutes.
-          </div>
         </div>
       </section>
 

@@ -273,7 +273,7 @@
   width: min(980px, 100%);
   max-height: min(85vh, 900px);
   overflow: hidden;
-
+  margin-top: 8rem;
   border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background:
@@ -292,6 +292,12 @@
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
   transform-origin: center;
   animation: sumPop 220ms ease both;
+}
+
+@media screen and (max-width: 768px) {
+  .sumModal {
+    margin-top: -20rem;
+  }
 }
 
 @keyframes sumPop {

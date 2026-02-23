@@ -168,8 +168,6 @@ export default function QuizSetupModal({
             Start Quiz
           </button>
         </footer>
-
-        <div className="qsmTip">Tip: Click outside to close.</div>
       </div>
     </div>
   );
