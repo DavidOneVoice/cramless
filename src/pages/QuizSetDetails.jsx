@@ -23,11 +23,13 @@ function fmtDate(iso) {
 export default function QuizSetDetails() {
   const [state, setState] = useState(() => loadState());
   const setId = getQueryParam("setId");
+
   const [setupOpen, setSetupOpen] = useState(false);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  // keep localStorage in sync generally
   useEffect(() => {
     saveState(state);
   }, [state]);
@@ -88,12 +90,18 @@ export default function QuizSetDetails() {
         return;
       }
 
-      setState((prev) => ({
-        ...prev,
-        quizSets: (prev.quizSets || []).map((x) =>
-          x.id === setId ? { ...x, summary } : x,
-        ),
-      }));
+      // ✅ Persist immediately, then navigate
+      setState((prev) => {
+        const next = {
+          ...prev,
+          quizSets: (prev.quizSets || []).map((x) =>
+            x.id === setId ? { ...x, summary } : x,
+          ),
+        };
+
+        saveState(next); // ✅ ensures Summaries sees it immediately
+        return next;
+      });
 
       goToSummaries();
     } catch (e) {

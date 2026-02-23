@@ -69,7 +69,7 @@ export default function PlannerSetupCard({
             onChange={(e) => setWorkload(Number(e.target.value))}
           >
             {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
+              <option id="priority-option" key={n} value={n}>
                 {n}
               </option>
             ))}
