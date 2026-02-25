@@ -45,9 +45,12 @@ export function loadState() {
 
 export function saveState(state) {
   try {
+    if (!state || typeof state !== "object") return false;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return true;
   } catch (err) {
     console.error("saveState error:", err);
+    return false;
   }
 }
 

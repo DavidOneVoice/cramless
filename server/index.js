@@ -7,6 +7,7 @@ import process from "process";
 import crypto from "crypto";
 
 const app = express();
+
 app.use(
   cors({
     origin: process.env.FRONTEND_ORIGIN
@@ -14,7 +15,10 @@ app.use(
       : true,
   }),
 );
+
+// Keep this small-ish so uploads don’t crash memory, but enough for typical text
 app.use(express.json({ limit: "4mb" }));
+
 app.use((req, res, next) => {
   console.log("INCOMING:", req.method, req.url);
   next();
@@ -23,6 +27,101 @@ app.use((req, res, next) => {
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+/* -------------------- text safety helpers -------------------- */
+
+function normalizeText(s = "") {
+  return String(s).replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Caps large text but keeps coverage:
+ * - head (start)
+ * - middle slice
+ * - tail (end)
+ */
+function capTextEvenly(text, maxChars) {
+  const t = normalizeText(text);
+  if (t.length <= maxChars) return { text: t, truncated: false };
+
+  // 40% head, 20% middle, 40% tail
+  const headLen = Math.floor(maxChars * 0.4);
+  const midLen = Math.floor(maxChars * 0.2);
+  const tailLen = maxChars - headLen - midLen;
+
+  const head = t.slice(0, headLen);
+
+  const midStart = Math.max(
+    0,
+    Math.floor(t.length / 2) - Math.floor(midLen / 2),
+  );
+  const mid = t.slice(midStart, midStart + midLen);
+
+  const tail = t.slice(Math.max(0, t.length - tailLen));
+
+  const joined = [
+    head,
+    "\n\n[...MIDDLE EXTRACT...]\n\n",
+    mid,
+    "\n\n[...END EXTRACT...]\n\n",
+    tail,
+    "\n\n[TRUNCATED FOR SIZE]\n",
+  ].join("");
+
+  return { text: joined, truncated: true };
+}
+
+function splitIntoChunks(text, chunkChars = 12000) {
+  const t = normalizeText(text);
+  if (!t) return [];
+  const chunks = [];
+  for (let i = 0; i < t.length; i += chunkChars) {
+    chunks.push(t.slice(i, i + chunkChars));
+  }
+  return chunks;
+}
+
+function friendlyOpenAIError(err) {
+  const msg = err?.error?.message || err?.message || "OpenAI request failed";
+
+  const lower = String(msg).toLowerCase();
+
+  // Common “too big” signals
+  if (
+    lower.includes("context length") ||
+    lower.includes("maximum context") ||
+    lower.includes("request too large") ||
+    (lower.includes("reduce") && lower.includes("tokens")) ||
+    lower.includes("too many tokens")
+  ) {
+    return {
+      status: 413,
+      error:
+        "Your material is too large for the AI request. Please upload a smaller file, or paste a shorter excerpt (or split the material into parts).",
+      detail: msg,
+    };
+  }
+
+  // Rate limits / TPM / RPM
+  if (
+    lower.includes("rate limit") ||
+    lower.includes("tokens per minute") ||
+    lower.includes("tpm") ||
+    lower.includes("rpm") ||
+    lower.includes("too many requests")
+  ) {
+    return {
+      status: 429,
+      error:
+        "The AI server is temporarily rate-limited. Please wait a bit and try again, or reduce the material size.",
+      detail: msg,
+    };
+  }
+
+  return { status: err?.status || 500, error: msg, detail: msg };
+}
+
+/* -------------------- diversity helpers (unchanged) -------------------- */
 
 function tokenize(s) {
   return String(s || "")
@@ -67,6 +166,8 @@ function selectDiverseQuestions(pool, avoidList, finalCount) {
   return selected;
 }
 
+/* -------------------- API: generate MCQs -------------------- */
+
 app.post("/api/generate-mcqs", async (req, res) => {
   try {
     const {
@@ -78,11 +179,18 @@ app.post("/api/generate-mcqs", async (req, res) => {
       nonce,
     } = req.body;
 
-    if (!sourceText || sourceText.trim().length < 80) {
+    if (!sourceText || normalizeText(sourceText).length < 80) {
       return res
         .status(400)
         .json({ error: "Please provide more study material text." });
     }
+
+    // Keep prompt under control
+    const MAX_MCQ_SOURCE_CHARS = 35000;
+    const { text: safeMaterial, truncated } = capTextEvenly(
+      sourceText,
+      MAX_MCQ_SOURCE_CHARS,
+    );
 
     const safeCount = Math.max(5, Math.min(Number(count) || 10, 25));
     const poolCount = Math.min(40, safeCount * 4);
@@ -98,7 +206,9 @@ app.post("/api/generate-mcqs", async (req, res) => {
       count: safeCount,
       poolCount,
       avoidCount: safeAvoid.length,
-      avoidSample: safeAvoid[0]?.slice(0, 80),
+      truncatedMaterial: truncated,
+      materialChars: normalizeText(sourceText).length,
+      usedChars: safeMaterial.length,
     });
 
     const baseNonce =
@@ -152,7 +262,7 @@ Output MUST be valid JSON ONLY in this exact structure:
 
 Title: ${title || "Untitled"}
 Study Material:
-${sourceText}
+${safeMaterial}
 `;
 
       const resp = await client.chat.completions.create({
@@ -211,26 +321,101 @@ ${sourceText}
       });
     }
 
-    return res.json({ questions: finalQuestions });
+    return res.json({
+      questions: finalQuestions,
+      meta: { truncatedMaterial: truncated },
+    });
   } catch (err) {
     console.error(err);
-    return res.status(err?.status || 500).json({
-      error: err?.error?.message || err?.message || "Failed to generate MCQs",
-    });
+    const f = friendlyOpenAIError(err);
+    return res.status(f.status).json({ error: f.error, detail: f.detail });
   }
 });
+
+/* -------------------- API: summarize (with chunking) -------------------- */
+
+async function summarizeChunk({ title, chunkText, index, total }) {
+  const prompt = `
+You are an expert academic tutor.
+
+Summarize PART ${index + 1} of ${total} from the study material "${title || "Untitled"}".
+
+Rules:
+- Be clear and structured.
+- Do NOT invent facts.
+- Prefer bullets where helpful.
+
+Return:
+1) Short overview (2–4 sentences)
+2) Key points (bullets)
+3) Definitions (if any)
+4) Likely exam focus (bullets)
+
+Material (PART ${index + 1}/${total}):
+${chunkText}
+`;
+  const r = await client.chat.completions.create({
+    model: "gpt-4.1-mini",
+    temperature: 0.3,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  return r.choices?.[0]?.message?.content || "";
+}
+
+async function combineSummaries({ title, partials }) {
+  const prompt = `
+You are an expert academic tutor.
+
+Combine these partial summaries into ONE clean final summary for "${title || "Untitled"}".
+
+Rules:
+- Merge duplicates.
+- Keep it concise but complete.
+- Make it readable.
+
+Return:
+1) A concise overview paragraph.
+2) Key concepts in bullet points.
+3) Important definitions (if applicable).
+4) Exam tips / likely test focus areas.
+
+Partial summaries:
+${partials.map((p, i) => `\n--- PART ${i + 1} ---\n${p}\n`).join("")}
+`;
+  const r = await client.chat.completions.create({
+    model: "gpt-4.1-mini",
+    temperature: 0.3,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  return r.choices?.[0]?.message?.content || "";
+}
 
 app.post("/api/summarize", async (req, res) => {
   try {
     const { title, sourceText } = req.body;
 
-    if (!sourceText || sourceText.length < 50) {
+    if (!sourceText || normalizeText(sourceText).length < 50) {
       return res
         .status(400)
         .json({ error: "Not enough material to summarize." });
     }
 
-    const prompt = `
+    const material = normalizeText(sourceText);
+
+    // If it’s small enough, do single-pass.
+    // If big, chunk then combine.
+    const MAX_SINGLEPASS_CHARS = 28000;
+    const CHUNK_CHARS = 12000;
+
+    console.log("SUMMARY request:", {
+      title,
+      materialChars: material.length,
+    });
+
+    if (material.length <= MAX_SINGLEPASS_CHARS) {
+      const prompt = `
 You are an expert academic tutor.
 
 Summarize the following study material clearly and intelligently.
@@ -244,23 +429,44 @@ Return:
 Material Title: ${title}
 
 Material:
-${sourceText}
+${material}
 `;
 
-    const response = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
-      temperature: 0.4,
-      messages: [{ role: "user", content: prompt }],
-    });
+      const response = await client.chat.completions.create({
+        model: "gpt-4.1-mini",
+        temperature: 0.3,
+        messages: [{ role: "user", content: prompt }],
+      });
 
-    const summary = response.choices?.[0]?.message?.content || "";
-    res.json({ summary });
+      const summary = response.choices?.[0]?.message?.content || "";
+      return res.json({ summary, meta: { chunked: false } });
+    }
+
+    // Chunked summary for large material
+    const chunks = splitIntoChunks(material, CHUNK_CHARS).slice(0, 10); // safety cap
+    const partials = [];
+
+    for (let i = 0; i < chunks.length; i++) {
+      // sequential is safer for rate limits
+      const part = await summarizeChunk({
+        title,
+        chunkText: chunks[i],
+        index: i,
+        total: chunks.length,
+      });
+      partials.push(part);
+    }
+
+    const final = await combineSummaries({ title, partials });
+
+    return res.json({
+      summary: final,
+      meta: { chunked: true, parts: chunks.length },
+    });
   } catch (err) {
     console.error(err);
-    res.status(err?.status || 500).json({
-      error:
-        err?.error?.message || err?.message || "Failed to generate summary",
-    });
+    const f = friendlyOpenAIError(err);
+    return res.status(f.status).json({ error: f.error, detail: f.detail });
   }
 });
 

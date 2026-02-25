@@ -23,13 +23,11 @@ function fmtDate(iso) {
 export default function QuizSetDetails() {
   const [state, setState] = useState(() => loadState());
   const setId = getQueryParam("setId");
-
   const [setupOpen, setSetupOpen] = useState(false);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // keep localStorage in sync generally
   useEffect(() => {
     saveState(state);
   }, [state]);
@@ -56,6 +54,7 @@ export default function QuizSetDetails() {
   async function generateSummary() {
     if (!set) return;
 
+    // If already exists, just open it
     if (set.summary) {
       goToSummaries();
       return;
@@ -90,20 +89,22 @@ export default function QuizSetDetails() {
         return;
       }
 
-      // ✅ Persist immediately, then navigate
+      // ✅ Update React state + localStorage in one place, then navigate after save
       setState((prev) => {
-        const next = {
+        const nextState = {
           ...prev,
           quizSets: (prev.quizSets || []).map((x) =>
             x.id === setId ? { ...x, summary } : x,
           ),
         };
 
-        saveState(next); // ✅ ensures Summaries sees it immediately
-        return next;
-      });
+        saveState(nextState);
 
-      goToSummaries();
+        // Navigate AFTER saving so Summaries loads it immediately
+        setTimeout(() => goToSummaries(), 0);
+
+        return nextState;
+      });
     } catch (e) {
       setError(e?.message || "Summary failed.");
     } finally {
