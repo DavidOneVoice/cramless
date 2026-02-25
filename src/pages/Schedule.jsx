@@ -3,12 +3,24 @@ import { loadState } from "../lib/storage";
 import { fromMinutes } from "../lib/time";
 import "./Schedule.css";
 
+/**
+ * Schedule page:
+ * - Displays the generated study schedule from localStorage state
+ * - Supports filtering by course
+ * - Supports copying/exporting schedule as TXT or CSV
+ *
+ * Note: This page only reads from storage (no saveState call here),
+ * and refreshes its state whenever the hash route changes.
+ */
 export default function Schedule() {
   const [state, setState] = useState(() => loadState());
   const [filterCourseId, setFilterCourseId] = useState("");
   const [copied, setCopied] = useState(false);
 
-  // ✅ Refresh state whenever hash route changes (planner -> schedule, etc.)
+  /**
+   * Refresh state whenever hash route changes (planner -> schedule, etc.)
+   * This ensures the schedule view always reflects the latest saved data.
+   */
   useEffect(() => {
     function onHashChange() {
       setState(loadState());
@@ -18,16 +30,23 @@ export default function Schedule() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  /**
+   * Auto-hide the "Copied" UI flag after a short delay.
+   */
   useEffect(() => {
     if (!copied) return;
     const t = setTimeout(() => setCopied(false), 1400);
     return () => clearTimeout(t);
   }, [copied]);
 
+  // Pull schedule/courses from persisted state.
   const schedule = useMemo(() => state.schedule || [], [state.schedule]);
   const courses = useMemo(() => state.courses || [], [state.courses]);
 
-  // ✅ Safety net: if a course was deleted, hide its leftover schedule items
+  /**
+   * Safety: if a course was deleted, hide any leftover schedule entries
+   * that reference missing courseIds.
+   */
   const validCourseIds = useMemo(
     () => new Set(courses.map((c) => c.id)),
     [courses],
@@ -37,17 +56,26 @@ export default function Schedule() {
     return schedule.filter((s) => validCourseIds.has(s.courseId));
   }, [schedule, validCourseIds]);
 
+  /**
+   * Filtered schedule based on selected course (optional).
+   */
   const filtered = useMemo(() => {
     if (!filterCourseId) return cleanedSchedule;
     return cleanedSchedule.filter((s) => s.courseId === filterCourseId);
   }, [cleanedSchedule, filterCourseId]);
 
-  // ✅ If the selected filter course no longer exists, reset the filter
+  /**
+   * If the currently selected filter course no longer exists, reset the filter.
+   */
   useEffect(() => {
     if (!filterCourseId) return;
     if (!validCourseIds.has(filterCourseId)) setFilterCourseId("");
   }, [filterCourseId, validCourseIds]);
 
+  /**
+   * Downloads a string as a file in the browser.
+   * Uses an object URL backed by a Blob.
+   */
   function downloadFile(filename, content, mime = "text/plain") {
     const blob = new Blob([content], { type: mime });
     const url = URL.createObjectURL(blob);
@@ -62,6 +90,9 @@ export default function Schedule() {
     URL.revokeObjectURL(url);
   }
 
+  /**
+   * Serializes schedule sessions into a human-friendly TXT format.
+   */
   function toScheduleTxt(sc) {
     const lines = sc.map((s) => {
       const time = `${fromMinutes(s.startMinutes)}–${fromMinutes(s.endMinutes)}`;
@@ -75,12 +106,19 @@ export default function Schedule() {
     ].join("\n");
   }
 
+  /**
+   * Escapes a value for safe CSV output.
+   * Wraps in quotes if it contains commas, quotes, or newlines.
+   */
   function escapeCsv(v) {
     const s = String(v ?? "");
     if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
     return s;
   }
 
+  /**
+   * Serializes schedule sessions into CSV format for Excel/Sheets.
+   */
   function toScheduleCsv(sc) {
     const header = ["Date", "Start", "End", "Course", "Type"];
 
@@ -124,6 +162,7 @@ export default function Schedule() {
         </header>
 
         {!hasSchedule ? (
+          // Empty state when no schedule exists yet.
           <div className="schEmpty">
             <div className="schEmptyIcon" aria-hidden="true" />
             <div>
@@ -160,6 +199,7 @@ export default function Schedule() {
 
               <div className="schTools">
                 <div className="schToolRow">
+                  {/* Copy schedule to clipboard in TXT format */}
                   <button
                     className="schGhost"
                     type="button"
@@ -177,6 +217,7 @@ export default function Schedule() {
                     Copy
                   </button>
 
+                  {/* Export schedule as TXT */}
                   <button
                     className="schGhost"
                     type="button"
@@ -190,6 +231,7 @@ export default function Schedule() {
                     Export TXT
                   </button>
 
+                  {/* Export schedule as CSV (Excel-friendly) */}
                   <button
                     className="schGhost"
                     type="button"
@@ -222,9 +264,9 @@ export default function Schedule() {
                 </div>
 
                 {filtered.map((s, idx) => {
+                  // Used to style "today" and "past" rows.
                   const todayIso = new Date().toISOString().slice(0, 10);
                   const isToday = s.date === todayIso;
-
                   const isPast = s.date < todayIso;
 
                   return (

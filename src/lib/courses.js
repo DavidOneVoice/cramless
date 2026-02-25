@@ -1,3 +1,13 @@
+/**
+ * Validates a course object before creation.
+ *
+ * Rules:
+ * - Name must exist and be at least 2 characters.
+ * - Exam date must be provided.
+ * - Workload must be a number between 1 and 10.
+ *
+ * Returns an array of error messages (empty if valid).
+ */
 export function validateCourse(course) {
   const errors = [];
 
@@ -17,6 +27,14 @@ export function validateCourse(course) {
   return errors;
 }
 
+/**
+ * Creates a normalized course object.
+ *
+ * - Generates a unique id using crypto.randomUUID().
+ * - Trims the course name.
+ * - Ensures workload is stored as a number.
+ * - Adds a createdAt timestamp (ISO string).
+ */
 export function makeCourse({ name, examDate, workload }) {
   return {
     id: crypto.randomUUID(),

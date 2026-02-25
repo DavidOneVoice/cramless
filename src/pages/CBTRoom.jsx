@@ -6,6 +6,11 @@ import { API_BASE } from "../lib/api";
 import "./CBTRoom.css";
 
 // -------------------- helpers --------------------
+
+/**
+ * Reads a query parameter from the hash portion of the URL.
+ * Expected format: #/route?key=value&key2=value2
+ */
 function getQueryParam(name) {
   const hash = window.location.hash || "";
   const q = hash.split("?")[1] || "";
@@ -13,12 +18,23 @@ function getQueryParam(name) {
   return params.get(name) || "";
 }
 
+/**
+ * Reads a query parameter as a positive integer.
+ * Falls back to the provided default when missing/invalid.
+ */
 function getIntParam(name, fallback) {
   const v = Number(getQueryParam(name));
   return Number.isFinite(v) && v > 0 ? Math.floor(v) : fallback;
 }
 // ------------------------------------------------
 
+/**
+ * CBTRoom is the quiz-taking screen:
+ * - Loads quiz sets from local storage state
+ * - Generates fresh questions from the backend (AI) for a selected set
+ * - Runs a countdown timer and auto-finishes at 0
+ * - Saves the most recent attempts back to the selected quiz set
+ */
 export default function CBTRoom() {
   const [state, setState] = useState(() => loadState());
   const quizSets = useMemo(() => state.quizSets || [], [state.quizSets]);
@@ -26,7 +42,7 @@ export default function CBTRoom() {
   const [error, setError] = useState("");
   const [generating, setGenerating] = useState(false);
 
-  // Practice state
+  // Practice state (live quiz session)
   const [activeSetId, setActiveSetId] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -36,22 +52,36 @@ export default function CBTRoom() {
 
   const { secondsLeft, isRunning, start, stop, reset } = useCountdown();
 
+  /**
+   * Persist app state whenever it changes.
+   * This keeps quiz sets, attempts, and planner data in localStorage.
+   */
   useEffect(() => {
     saveState(state);
   }, [state]);
 
+  /**
+   * Resolve the currently active quiz set from state.
+   */
   const activeSet = useMemo(
     () => quizSets.find((s) => s.id === activeSetId) || null,
     [quizSets, activeSetId],
   );
 
-  // Auto-finish if timer hits 0
+  /**
+   * Auto-finish the quiz if timer reaches 0.
+   * `useCountdown` stops running at 0, so we check for isRunning false + secondsLeft 0.
+   */
   useEffect(() => {
     if (activeSetId && isRunning === false && secondsLeft === 0) {
       if (!showResult) setShowResult(true);
     }
   }, [activeSetId, isRunning, secondsLeft, showResult]);
 
+  /**
+   * Initializes a fresh quiz attempt UI state for a given set.
+   * (Timer is started separately.)
+   */
   function startPractice(setId) {
     setActiveSetId(setId);
     setCurrentIndex(0);
@@ -61,6 +91,10 @@ export default function CBTRoom() {
     setShowResult(false);
   }
 
+  /**
+   * Exits CBT mode and returns to the relevant page.
+   * Also stops and resets the countdown timer.
+   */
   function exitPractice() {
     setActiveSetId(null);
     setCurrentIndex(0);
@@ -74,20 +108,29 @@ export default function CBTRoom() {
     const sid = getQueryParam("setId");
     window.location.hash = sid ? `#/quizSet?setId=${sid}` : "#/quizSets";
   }
+
+  /**
+   * Advances to the next question (or finishes the quiz at the end).
+   * Uses:
+   * - answerOverride (passed from child) OR
+   * - currently selectedAnswer OR
+   * - the stored answer for the current question
+   */
   function handleNext(answerOverride) {
     if (!activeSet) return;
 
     const q = activeSet.questions[currentIndex];
 
-    // ✅ Use override OR current selectedAnswer OR stored answer
     const chosen =
       answerOverride ?? selectedAnswer ?? attemptAnswers?.[q?.id] ?? null;
 
+    // Do not advance unless an answer exists.
     if (!chosen) return;
 
+    // Update score immediately for correct answers.
     if (chosen === q.answer) setScore((p) => p + 1);
 
-    // ✅ If this was the last question, finish immediately
+    // If this was the last question, finish immediately.
     if (currentIndex + 1 >= activeSet.questions.length) {
       setShowResult(true);
       stop();
@@ -98,6 +141,10 @@ export default function CBTRoom() {
     setSelectedAnswer(null);
   }
 
+  /**
+   * Saves a quiz attempt into the selected set.
+   * Keeps only the most recent 4 attempts.
+   */
   function saveAttemptForSet({
     setId,
     score,
@@ -132,6 +179,10 @@ export default function CBTRoom() {
     }));
   }
 
+  /**
+   * Calls the backend AI endpoint to generate MCQs for a quiz set.
+   * Also tracks prompt history to reduce repeated questions across attempts.
+   */
   async function generateWithAI(setId, count = 10) {
     const target = (state.quizSets || []).find((x) => x.id === setId);
     if (!target) return [];
@@ -150,7 +201,9 @@ export default function CBTRoom() {
           sourceText: target.sourceText,
           count,
           difficulty: "mixed",
+          // Nonce helps encourage variation across repeated requests.
           nonce: crypto.randomUUID(),
+          // Avoid prompts that were previously used (best-effort diversity).
           avoid: (target.promptHistory || target.questions || [])
             .map((q) => (typeof q === "string" ? q : q.prompt))
             .filter(Boolean)
@@ -158,6 +211,7 @@ export default function CBTRoom() {
         }),
       });
 
+      // Read raw text first so we can handle non-JSON responses gracefully.
       const raw = await r.text();
       let data = {};
       try {
@@ -177,6 +231,7 @@ export default function CBTRoom() {
         return [];
       }
 
+      // Minimal validation of expected question format.
       const looksValid = questions.every(
         (q) =>
           q &&
@@ -191,6 +246,7 @@ export default function CBTRoom() {
         return [];
       }
 
+      // Store generated questions + prompt history back into the set.
       setState((prev) => ({
         ...prev,
         quizSets: (prev.quizSets || []).map((set) => {
@@ -220,7 +276,7 @@ export default function CBTRoom() {
     }
   }
 
-  // Prevent double-start for same (setId|count|mins)
+  // Prevent double-start for the same (setId|count|mins) combination.
   const startedRef = useRef("");
 
   useEffect(() => {
@@ -241,14 +297,20 @@ export default function CBTRoom() {
       const questions = await generateWithAI(setId, count);
       if (!questions.length) return;
 
+      // Start timer (in seconds) and initialize UI state for a new attempt.
       start(mins * 60);
       startPractice(setId);
 
+      // Normalize URL to reflect the active quiz settings.
       window.location.hash = `#/cbt?setId=${setId}&count=${count}&mins=${mins}`;
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.quizSets]);
 
+  /**
+   * Retake generates a fresh set of questions again (best-effort diversity),
+   * then restarts timer and resets attempt state.
+   */
   async function onRetake() {
     if (!activeSetId) return;
 
@@ -262,9 +324,14 @@ export default function CBTRoom() {
     startPractice(activeSetId);
   }
 
+  // Read the configured count/mins for displaying in the HUD.
   const count = getIntParam("count", 10);
   const mins = getIntParam("mins", count);
 
+  /**
+   * Loading / error fallback UI when no active set is available yet
+   * (e.g., while generating questions).
+   */
   if (!activeSetId || !activeSet) {
     return (
       <section className="cbtShell card">
@@ -300,6 +367,7 @@ export default function CBTRoom() {
         </div>
 
         <div className="cbtHudRight">
+          {/* Surface any generation/runtime error messages */}
           {error && <div className="cbtError">{error}</div>}
         </div>
       </section>
@@ -319,6 +387,7 @@ export default function CBTRoom() {
         secondsLeft={secondsLeft}
         activeSetId={activeSetId}
         onFinishAttempt={() => {
+          // Save attempt only when we have a valid set and questions snapshot.
           if (!activeSetId || !activeSet) return;
 
           saveAttemptForSet({

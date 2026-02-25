@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import "./QuizSetupModal.css";
 
+/**
+ * QuizSetupModal collects quiz configuration before starting:
+ * - Number of questions (preset options)
+ * - Duration mode: auto (recommended) or custom minutes
+ *
+ * When the user clicks "Start Quiz", it calls onStart with:
+ * { count, minutes, mode: "auto" | "custom" }
+ */
 export default function QuizSetupModal({
   open,
   title = "Quiz Setup",
@@ -9,12 +17,17 @@ export default function QuizSetupModal({
   onClose,
   onStart,
 }) {
+  // Preset counts for quick selection (memoized to avoid recreating array on each render).
   const presetCounts = useMemo(() => [5, 10, 15, 20, 30, 50, 75, 100], []);
 
   const [count, setCount] = useState(defaultCount);
   const [useAutoTime, setUseAutoTime] = useState(true);
   const [customMinutes, setCustomMinutes] = useState("");
 
+  /**
+   * Reset modal state whenever it opens (or when defaultCount changes),
+   * so each new open starts from predictable defaults.
+   */
   useEffect(() => {
     if (!open) return;
     setCount(defaultCount);
@@ -22,11 +35,15 @@ export default function QuizSetupModal({
     setCustomMinutes("");
   }, [open, defaultCount]);
 
+  // Auto duration rule: 1 minute per question (minimum of 1 minute).
   const autoMinutes = Math.max(1, Number(count || 1));
+
+  // Final minutes depends on selected mode (auto vs custom), always clamped to >= 1.
   const minutes = useAutoTime
     ? autoMinutes
     : Math.max(1, Number(customMinutes || 1));
 
+  // Do not render if the modal is closed.
   if (!open) return null;
 
   return (
@@ -35,12 +52,15 @@ export default function QuizSetupModal({
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      // Clicking outside the card closes the modal.
       onClick={() => onClose?.()}
     >
+      {/* Stop click propagation so clicks inside the card do not close the modal */}
       <div className="qsmCard" onClick={(e) => e.stopPropagation()}>
         <header className="qsmHeader">
           <div className="qsmHeaderLeft">
             <div className="qsmTitle">{title}</div>
+            {/* Show the quiz set title when provided */}
             {setTitle ? (
               <div className="qsmSetTitle">
                 <span className="qsmSetPill">Set</span>
@@ -53,6 +73,7 @@ export default function QuizSetupModal({
             className="qsmClose"
             type="button"
             onClick={() => onClose?.()}
+            aria-label="Close"
           >
             ✕
           </button>
@@ -93,6 +114,7 @@ export default function QuizSetupModal({
             </div>
 
             <div className="qsmTimeModes">
+              {/* Auto duration mode */}
               <label className={useAutoTime ? "qsmMode active" : "qsmMode"}>
                 <input
                   className="qsmRadio"
@@ -112,6 +134,7 @@ export default function QuizSetupModal({
                 </div>
               </label>
 
+              {/* Custom duration mode */}
               <label className={!useAutoTime ? "qsmMode active" : "qsmMode"}>
                 <input
                   className="qsmRadio"
@@ -128,6 +151,7 @@ export default function QuizSetupModal({
                 </div>
               </label>
 
+              {/* Custom minutes input only appears when custom mode is selected */}
               {!useAutoTime && (
                 <div className="qsmCustomRow">
                   <input
@@ -157,6 +181,7 @@ export default function QuizSetupModal({
           <button
             className="qsmBtn qsmPrimary"
             type="button"
+            // Start the quiz with the selected configuration.
             onClick={() =>
               onStart?.({
                 count,

@@ -5,6 +5,10 @@ import QuizSetupModal from "../components/quiz/QuizSetupModal";
 import { API_BASE } from "../lib/api";
 import "./QuizSetDetails.css";
 
+/**
+ * Reads a query parameter from the hash portion of the URL.
+ * Expected format: #/route?key=value&key2=value2
+ */
 function getQueryParam(name) {
   const hash = window.location.hash || "";
   const q = hash.split("?")[1] || "";
@@ -12,6 +16,10 @@ function getQueryParam(name) {
   return params.get(name) || "";
 }
 
+/**
+ * Formats an ISO date/time string into a readable local date/time string.
+ * Falls back to the input string if parsing fails.
+ */
 function fmtDate(iso) {
   try {
     return new Date(iso).toLocaleString();
@@ -20,22 +28,42 @@ function fmtDate(iso) {
   }
 }
 
+/**
+ * QuizSetDetails page:
+ * - Shows a single saved quiz set summary (status pills + attempts)
+ * - Lets user start a quiz (via QuizSetupModal)
+ * - Lets user generate/view an AI summary
+ * - Lets user clear attempts (with confirmation)
+ *
+ * Note: all data is stored locally in this browser via localStorage state.
+ */
 export default function QuizSetDetails() {
   const [state, setState] = useState(() => loadState());
   const setId = getQueryParam("setId");
+
+  // Modals + UI state
   const [setupOpen, setSetupOpen] = useState(false);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+
+  // Busy/error state for async actions (e.g. summary generation)
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  /**
+   * Persist state whenever it changes.
+   */
   useEffect(() => {
     saveState(state);
   }, [state]);
 
+  /**
+   * Resolve the selected quiz set by id from local state.
+   */
   const set = useMemo(() => {
     return (state.quizSets || []).find((s) => s.id === setId) || null;
   }, [state.quizSets, setId]);
 
+  // Attempts summary metrics
   const attempts = Array.isArray(set?.attempts) ? set.attempts : [];
   const best = attempts.reduce(
     (acc, a) => Math.max(acc, Number(a.score || 0)),
@@ -43,18 +71,24 @@ export default function QuizSetDetails() {
   );
   const lastAttempt = attempts[0] || null;
 
+  /** Simple hash navigation helper. */
   function go(to) {
     window.location.hash = `#/${to}`;
   }
 
+  /** Navigates to the summaries page for this quiz set. */
   function goToSummaries() {
     window.location.hash = `#/summaries?setId=${setId}`;
   }
 
+  /**
+   * Generates an AI summary for this quiz set (if not already present).
+   * If summary already exists, just navigates to the summaries page.
+   */
   async function generateSummary() {
     if (!set) return;
 
-    // If already exists, just open it
+    // If already exists, just open it.
     if (set.summary) {
       goToSummaries();
       return;
@@ -70,6 +104,7 @@ export default function QuizSetDetails() {
         body: JSON.stringify({ title: set.title, sourceText: set.sourceText }),
       });
 
+      // Read as text first to handle non-JSON server responses gracefully.
       const raw = await r.text();
       let data = {};
       try {
@@ -89,7 +124,10 @@ export default function QuizSetDetails() {
         return;
       }
 
-      // ✅ Update React state + localStorage in one place, then navigate after save
+      /**
+       * Update React state and localStorage together.
+       * Then navigate after saving so the Summaries page can load immediately.
+       */
       setState((prev) => {
         const nextState = {
           ...prev,
@@ -100,7 +138,7 @@ export default function QuizSetDetails() {
 
         saveState(nextState);
 
-        // Navigate AFTER saving so Summaries loads it immediately
+        // Navigate AFTER saving (microtask) to ensure the new summary is available.
         setTimeout(() => goToSummaries(), 0);
 
         return nextState;
@@ -112,15 +150,21 @@ export default function QuizSetDetails() {
     }
   }
 
+  /** Opens the quiz setup modal (count + time selection). */
   function takeQuiz() {
     setSetupOpen(true);
   }
 
+  /** Opens the confirmation modal for clearing attempts. */
   function clearAttempts() {
     if (!set) return;
     setConfirmClearOpen(true);
   }
 
+  /**
+   * Clears all attempts for this quiz set after confirmation.
+   * (This affects only local browser storage.)
+   */
   function handleClearConfirmed() {
     if (!set) return;
 
@@ -134,6 +178,7 @@ export default function QuizSetDetails() {
     setConfirmClearOpen(false);
   }
 
+  // Guard: missing setId in URL.
   if (!setId) {
     return (
       <section className="qsdCard card">
@@ -150,6 +195,7 @@ export default function QuizSetDetails() {
     );
   }
 
+  // Guard: setId exists but set cannot be found (possibly deleted).
   if (!set) {
     return (
       <section className="qsdCard card">
@@ -177,28 +223,33 @@ export default function QuizSetDetails() {
             <h2 className="qsdSetTitle">{set.title}</h2>
 
             <div className="qsdStatusRow">
+              {/* Questions status */}
               <span className={questionCount ? "qsdPill ok" : "qsdPill"}>
                 {questionCount
                   ? `${questionCount} questions ready`
                   : "No questions yet"}
               </span>
 
+              {/* Summary status */}
               <span className={set.summary ? "qsdPill ok2" : "qsdPill"}>
                 {set.summary ? "Summary ready" : "No summary yet"}
               </span>
 
+              {/* Attempts status */}
               <span className="qsdPill">
                 {attempts.length
                   ? `${attempts.length} attempt(s)`
                   : "No attempts yet"}
               </span>
 
+              {/* Best score badge */}
               {attempts.length ? (
                 <span className="qsdPill">
                   Best: <strong>{best}</strong>/{lastAttempt?.total || "-"}
                 </span>
               ) : null}
 
+              {/* Last attempt timestamp */}
               {lastAttempt?.takenAt ? (
                 <span className="qsdPill">
                   Last: <strong>{fmtDate(lastAttempt.takenAt)}</strong>
@@ -230,6 +281,7 @@ export default function QuizSetDetails() {
                   : "Generate Summary"}
             </button>
 
+            {/* Only show clear attempts when there is at least one attempt */}
             {attempts.length > 0 && (
               <button
                 className="qsdDanger"
@@ -252,6 +304,7 @@ export default function QuizSetDetails() {
           </div>
         </div>
 
+        {/* Error banner */}
         {error && <div className="qsdError">{error}</div>}
       </section>
 
@@ -261,6 +314,7 @@ export default function QuizSetDetails() {
           <div className="qsdAttemptsHint">Stored locally in this browser</div>
         </div>
 
+        {/* Empty state for attempts */}
         {attempts.length === 0 ? (
           <div className="qsdEmpty">
             <div className="qsdEmptyIcon" aria-hidden="true" />
@@ -273,6 +327,7 @@ export default function QuizSetDetails() {
           </div>
         ) : (
           <div className="qsdAttemptGrid">
+            {/* Display up to 4 most recent attempts */}
             {attempts.slice(0, 4).map((a, idx) => (
               <div className="qsdAttemptCard" key={a.id}>
                 <div className="qsdAttemptLeft">
@@ -299,6 +354,7 @@ export default function QuizSetDetails() {
         )}
       </section>
 
+      {/* Confirmation for clearing attempts */}
       <ConfirmModal
         open={confirmClearOpen}
         title="Clear attempts?"
@@ -310,6 +366,7 @@ export default function QuizSetDetails() {
         onConfirm={handleClearConfirmed}
       />
 
+      {/* Setup modal for starting a quiz */}
       <QuizSetupModal
         open={setupOpen}
         title="Take Quiz"
@@ -317,6 +374,7 @@ export default function QuizSetDetails() {
         defaultCount={10}
         onClose={() => setSetupOpen(false)}
         onStart={({ count, minutes }) => {
+          // Close modal then navigate to CBT route with chosen configuration.
           setSetupOpen(false);
           window.location.hash = `#/cbt?setId=${setId}&count=${count}&mins=${minutes}`;
         }}

@@ -4,10 +4,24 @@ import QuizSetsTable from "../components/quiz/QuizSetsTable";
 import ConfirmModal from "../components/common/ConfirmModal";
 import "./QuizSets.css";
 
+/**
+ * QuizSets page:
+ * - Lists all saved quiz sets (stored locally in this browser)
+ * - Allows opening a set's details page
+ * - Allows deleting a set (with confirmation)
+ * - Provides shortcuts to create a new set and to view summaries
+ */
 export default function QuizSets() {
   const [state, setState] = useState(() => loadState());
+
+  // Stores the set id that is pending deletion confirmation.
   const [confirmRemoveId, setConfirmRemoveId] = useState(null);
 
+  /**
+   * Keep this page in sync when navigation changes the hash route.
+   * This is useful because other pages may modify localStorage state,
+   * and returning here should reflect the latest saved data.
+   */
   useEffect(() => {
     function onHashChange() {
       setState(loadState());
@@ -16,20 +30,30 @@ export default function QuizSets() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  /**
+   * Persist state changes to localStorage.
+   */
   useEffect(() => {
     saveState(state);
   }, [state]);
 
+  // Memoize the quizSets list for stable rendering.
   const quizSets = useMemo(() => state.quizSets || [], [state.quizSets]);
 
+  /** Navigates to the quiz set details page. */
   function openSet(setId) {
     window.location.hash = `#/quizSet?setId=${setId}`;
   }
 
+  /** Opens the delete confirmation modal for a specific set id. */
   function confirmRemove(setId) {
     setConfirmRemoveId(setId);
   }
 
+  /**
+   * Deletes the selected quiz set after confirmation.
+   * This removes the set along with its saved questions, summary, and attempts.
+   */
   function handleRemoveConfirmed() {
     if (!confirmRemoveId) return;
 
@@ -53,6 +77,7 @@ export default function QuizSets() {
           </div>
 
           <div className="qsActions">
+            {/* Navigate to the Quiz Builder page */}
             <button
               className="qsPrimary"
               type="button"
@@ -61,6 +86,7 @@ export default function QuizSets() {
               + Create Quiz Set
             </button>
 
+            {/* Navigate to Summaries page */}
             <button
               className="qsGhost"
               type="button"
@@ -71,6 +97,7 @@ export default function QuizSets() {
           </div>
         </div>
 
+        {/* Visual hints only (not needed for screen readers) */}
         <div className="qsHintRow" aria-hidden="true">
           <span className="qsPill">Save materials</span>
           <span className="qsPill qsPillAlt">Generate MCQs</span>
@@ -84,6 +111,7 @@ export default function QuizSets() {
         onRemoveSet={confirmRemove}
       />
 
+      {/* Delete confirmation modal */}
       <ConfirmModal
         open={!!confirmRemoveId}
         title="Delete Quiz Set?"

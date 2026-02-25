@@ -8,6 +8,11 @@ import crypto from "crypto";
 
 const app = express();
 
+/**
+ * CORS configuration:
+ * - If FRONTEND_ORIGIN is provided (comma-separated), only those origins are allowed.
+ * - Otherwise, allow all origins (useful during local/dev; review for production).
+ */
 app.use(
   cors({
     origin: process.env.FRONTEND_ORIGIN
@@ -19,17 +24,27 @@ app.use(
 // Keep this small-ish so uploads don’t crash memory, but enough for typical text
 app.use(express.json({ limit: "4mb" }));
 
+/**
+ * Lightweight request logging for debugging and monitoring.
+ * (Consider using a structured logger in production.)
+ */
 app.use((req, res, next) => {
   console.log("INCOMING:", req.method, req.url);
   next();
 });
 
+/** Simple health check endpoint for uptime monitoring. */
 app.get("/health", (req, res) => res.json({ ok: true }));
 
+/**
+ * OpenAI client setup.
+ * Requires OPENAI_API_KEY in environment variables.
+ */
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /* -------------------- text safety helpers -------------------- */
 
+/** Normalizes text by collapsing whitespace and trimming edges. */
 function normalizeText(s = "") {
   return String(s).replace(/\s+/g, " ").trim();
 }
@@ -39,6 +54,8 @@ function normalizeText(s = "") {
  * - head (start)
  * - middle slice
  * - tail (end)
+ *
+ * This helps reduce prompt size while still capturing context across the material.
  */
 function capTextEvenly(text, maxChars) {
   const t = normalizeText(text);
@@ -59,6 +76,7 @@ function capTextEvenly(text, maxChars) {
 
   const tail = t.slice(Math.max(0, t.length - tailLen));
 
+  // Markers help users understand the material was trimmed and where excerpts came from.
   const joined = [
     head,
     "\n\n[...MIDDLE EXTRACT...]\n\n",
@@ -71,6 +89,10 @@ function capTextEvenly(text, maxChars) {
   return { text: joined, truncated: true };
 }
 
+/**
+ * Splits text into fixed-size chunks for multi-step summarization.
+ * Chunking helps avoid context-length errors on large inputs.
+ */
 function splitIntoChunks(text, chunkChars = 12000) {
   const t = normalizeText(text);
   if (!t) return [];
@@ -81,6 +103,12 @@ function splitIntoChunks(text, chunkChars = 12000) {
   return chunks;
 }
 
+/**
+ * Converts OpenAI/SDK errors into user-friendly API responses:
+ * - 413 for payload/context-size issues
+ * - 429 for rate limits
+ * - falls back to server error status/message
+ */
 function friendlyOpenAIError(err) {
   const msg = err?.error?.message || err?.message || "OpenAI request failed";
 
@@ -123,6 +151,12 @@ function friendlyOpenAIError(err) {
 
 /* -------------------- diversity helpers (unchanged) -------------------- */
 
+/**
+ * Tokenizes text for similarity checks:
+ * - lowercase
+ * - remove punctuation
+ * - keep words of length >= 3
+ */
 function tokenize(s) {
   return String(s || "")
     .toLowerCase()
@@ -131,6 +165,10 @@ function tokenize(s) {
     .filter((w) => w.length >= 3);
 }
 
+/**
+ * Jaccard similarity over token sets.
+ * Used to reduce repeated or near-duplicate question prompts.
+ */
 function jaccard(a, b) {
   const A = new Set(tokenize(a));
   const B = new Set(tokenize(b));
@@ -143,10 +181,19 @@ function jaccard(a, b) {
   return union ? inter / union : 0;
 }
 
+/**
+ * Returns true if `prompt` is too similar to any item in `list`
+ * using the provided similarity threshold.
+ */
 function isTooSimilar(prompt, list, threshold) {
   return list.some((old) => jaccard(prompt, old) >= threshold);
 }
 
+/**
+ * Selects a diverse subset of questions:
+ * - avoids prompts similar to previously asked prompts (avoidList)
+ * - avoids duplicates within the new selection (chosenPrompts)
+ */
 function selectDiverseQuestions(pool, avoidList, finalCount) {
   const selected = [];
   const chosenPrompts = [];
@@ -179,6 +226,7 @@ app.post("/api/generate-mcqs", async (req, res) => {
       nonce,
     } = req.body;
 
+    // Basic validation: ensures enough text to generate meaningful MCQs.
     if (!sourceText || normalizeText(sourceText).length < 80) {
       return res
         .status(400)
@@ -192,15 +240,19 @@ app.post("/api/generate-mcqs", async (req, res) => {
       MAX_MCQ_SOURCE_CHARS,
     );
 
+    // Enforce reasonable bounds on how many questions can be requested at once.
     const safeCount = Math.max(5, Math.min(Number(count) || 10, 25));
+    // Build a larger pool first, then filter down for diversity.
     const poolCount = Math.min(40, safeCount * 4);
 
+    // Sanitize avoid-list: strings only, non-empty, and capped for safety.
     const safeAvoid = Array.isArray(avoid)
       ? avoid
           .filter((x) => typeof x === "string" && x.trim().length > 0)
           .slice(0, 40)
       : [];
 
+    // Useful server-side telemetry for debugging prompt sizes and diversity behavior.
     console.log("MCQ request:", {
       title,
       count: safeCount,
@@ -211,6 +263,7 @@ app.post("/api/generate-mcqs", async (req, res) => {
       usedChars: safeMaterial.length,
     });
 
+    // Nonce helps encourage variation across retries for similar material.
     const baseNonce =
       typeof nonce === "string" && nonce.trim().length > 0
         ? nonce.trim()
@@ -218,6 +271,7 @@ app.post("/api/generate-mcqs", async (req, res) => {
 
     let finalQuestions = [];
 
+    // Retry up to 3 times to get sufficiently diverse, valid JSON questions.
     for (let attempt = 0; attempt < 3; attempt++) {
       const attemptNonce = attempt === 0 ? baseNonce : crypto.randomUUID();
 
@@ -270,6 +324,7 @@ ${safeMaterial}
         temperature: 1.0,
         presence_penalty: 0.9,
         frequency_penalty: 0.5,
+        // Force strict JSON output to simplify parsing on the server.
         response_format: { type: "json_object" },
         messages: [{ role: "user", content: prompt }],
       });
@@ -277,6 +332,7 @@ ${safeMaterial}
       const rawText = resp.choices?.[0]?.message?.content || "{}";
 
       let data;
+      // If parsing fails, retry with a new nonce (next loop iteration).
       try {
         data = JSON.parse(rawText);
       } catch {
@@ -285,6 +341,7 @@ ${safeMaterial}
 
       const rawQs = Array.isArray(data.questions) ? data.questions : [];
 
+      // Validate and normalize the model output into the API's expected structure.
       const pool = rawQs
         .map((q) => {
           const opts = Array.isArray(q.options) ? q.options : [];
@@ -298,6 +355,7 @@ ${safeMaterial}
             id: crypto.randomUUID(),
             prompt: q.prompt.trim(),
             options: opts.map((x) => String(x || "").trim()),
+            // Convenience field: the actual answer text derived from answerIndex.
             answer: opts[idx],
             explanation: typeof q.explanation === "string" ? q.explanation : "",
           };
@@ -308,6 +366,7 @@ ${safeMaterial}
 
       const selected = selectDiverseQuestions(pool, safeAvoid, safeCount);
 
+      // Ensure we return a meaningful minimum set before accepting an attempt.
       if (selected.length >= Math.min(5, safeCount)) {
         finalQuestions = selected;
         break;
@@ -334,6 +393,10 @@ ${safeMaterial}
 
 /* -------------------- API: summarize (with chunking) -------------------- */
 
+/**
+ * Summarizes a single chunk of the study material.
+ * Used when the input is too large for a single request.
+ */
 async function summarizeChunk({ title, chunkText, index, total }) {
   const prompt = `
 You are an expert academic tutor.
@@ -363,6 +426,10 @@ ${chunkText}
   return r.choices?.[0]?.message?.content || "";
 }
 
+/**
+ * Combines multiple partial summaries into one consolidated summary.
+ * This step reduces duplication and improves readability.
+ */
 async function combineSummaries({ title, partials }) {
   const prompt = `
 You are an expert academic tutor.
@@ -396,6 +463,7 @@ app.post("/api/summarize", async (req, res) => {
   try {
     const { title, sourceText } = req.body;
 
+    // Basic validation: ensures enough text to produce a useful summary.
     if (!sourceText || normalizeText(sourceText).length < 50) {
       return res
         .status(400)
@@ -447,7 +515,7 @@ ${material}
     const partials = [];
 
     for (let i = 0; i < chunks.length; i++) {
-      // sequential is safer for rate limits
+      // Sequential processing is safer for rate limits and simpler to reason about.
       const part = await summarizeChunk({
         title,
         chunkText: chunks[i],
@@ -470,6 +538,7 @@ ${material}
   }
 });
 
+// Port can be configured via environment variables for deployment platforms.
 const PORT = process.env.PORT || 5050;
 
 app.listen(PORT, () => {

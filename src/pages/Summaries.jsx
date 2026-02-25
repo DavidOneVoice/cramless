@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { loadState } from "../lib/storage";
 import "./Summaries.css";
 
+/**
+ * Reads `setId` from the hash query string.
+ * Example: #/summaries?setId=abc123
+ */
 function getSetIdFromHash() {
   const raw = window.location.hash || "";
   const qIndex = raw.indexOf("?");
@@ -11,14 +15,31 @@ function getSetIdFromHash() {
   return params.get("setId") || "";
 }
 
+/**
+ * Summaries page:
+ * - Lists all quiz sets that have a generated summary
+ * - Allows viewing a summary in a modal
+ * - Allows copying summaries to clipboard
+ *
+ * Note: Summaries are stored locally in this browser (localStorage state).
+ */
 export default function Summaries() {
   const [state, setState] = useState(() => loadState());
+
+  // Which summary is currently opened in the modal (quiz set id).
   const [openSetId, setOpenSetId] = useState("");
+
+  // Used to show a short "Copied ✅" UI state for a specific set id.
   const [copiedId, setCopiedId] = useState("");
 
+  /**
+   * Sync state whenever the hash changes.
+   * Also auto-opens the summary if a setId is present in the URL.
+   */
   useEffect(() => {
     function syncFromStorage() {
       setState(loadState());
+
       const id = getSetIdFromHash();
       if (id) setOpenSetId(id);
     }
@@ -28,6 +49,9 @@ export default function Summaries() {
     return () => window.removeEventListener("hashchange", syncFromStorage);
   }, []);
 
+  /**
+   * Auto-hide the "Copied" UI flag after a short delay.
+   */
   useEffect(() => {
     if (!copiedId) return;
     const t = setTimeout(() => setCopiedId(""), 1400);
@@ -36,6 +60,10 @@ export default function Summaries() {
 
   const quizSets = useMemo(() => state.quizSets || [], [state.quizSets]);
 
+  /**
+   * Only show sets that have a non-empty summary.
+   * Sort newest-first by createdAt (string ISO comparison).
+   */
   const summarizedSets = useMemo(() => {
     return quizSets
       .filter(
@@ -46,6 +74,9 @@ export default function Summaries() {
       );
   }, [quizSets]);
 
+  /**
+   * The set currently opened in the modal (if any).
+   */
   const openSet = useMemo(() => {
     return summarizedSets.find((s) => s.id === openSetId) || null;
   }, [summarizedSets, openSetId]);
@@ -74,6 +105,7 @@ export default function Summaries() {
         </header>
 
         {summarizedSets.length === 0 ? (
+          // Empty state when no summaries exist.
           <div className="sumEmpty">
             <div className="sumEmptyIcon" aria-hidden="true" />
             <div>
@@ -113,7 +145,8 @@ export default function Summaries() {
                         await navigator.clipboard.writeText(s.summary || "");
                         setCopiedId(s.id);
                       } catch {
-                        // Fallback: keep UI calm even if clipboard fails
+                        // Clipboard can fail (permissions, unsupported browser, etc.).
+                        // Keep UI calm and still show the copied feedback.
                         setCopiedId(s.id);
                       }
                     }}
@@ -131,6 +164,7 @@ export default function Summaries() {
         )}
       </section>
 
+      {/* Summary viewer modal */}
       {openSet && (
         <div
           className="sumOverlay"
@@ -174,11 +208,13 @@ export default function Summaries() {
               </div>
             </header>
 
+            {/* Toast shown only when the opened set was copied */}
             {copiedId === openSet.id && (
               <div className="sumToast">Copied ✅</div>
             )}
 
             <div className="sumModalBody">
+              {/* Render as plain text (no HTML injection) */}
               <div className="sumText">{openSet.summary}</div>
             </div>
           </div>

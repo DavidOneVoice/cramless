@@ -1,20 +1,31 @@
 import "./Start.css";
 
+/**
+ * Start (landing) page:
+ * - Introduces what CramLess does
+ * - Gives quick steps for first-time users
+ * - Displays simple decorative hero artwork (purely visual)
+ *
+ * Note: This is a presentational component (no state, no side effects).
+ */
 export default function Start() {
   return (
     <div className="start">
       <section className="startHero card">
         <div className="startHeroText">
+          {/* Short feature kicker pills */}
           <div className="startKicker">
             <span className="pill">Study smarter</span>
             <span className="pill pillAlt">Practice better</span>
           </div>
 
+          {/* Main headline (uses spans for gradient styling) */}
           <h1 className="startTitle">
             Your <span className="gradA">smart</span> study planner &amp;{" "}
             <span className="gradB">quiz</span> generator.
           </h1>
 
+          {/* Product description */}
           <p className="startLead">
             CramLess helps students plan study time intelligently (based on
             course workload and exam dates) and practice what they learn using
@@ -32,6 +43,8 @@ export default function Start() {
 
             <div className="infoCard">
               <h2 className="sectionTitle">How to start</h2>
+
+              {/* Simple onboarding steps */}
               <ol className="steps">
                 <li>Add your courses and exam dates.</li>
                 <li>
@@ -51,8 +64,9 @@ export default function Start() {
           </p>
         </div>
 
+        {/* Decorative / non-interactive art section */}
         <div className="startHeroArt" aria-hidden="true">
-          {/* SVG “original” background art (no copyright issues) */}
+          {/* SVG “original” background art (purely decorative) */}
           <div className="orb orb1" />
           <div className="orb orb2" />
           <div className="orb orb3" />
@@ -70,6 +84,7 @@ export default function Start() {
             />
           </svg>
 
+          {/* Mini UI-style cards for visual emphasis */}
           <div className="miniCard">
             <div className="miniDot" />
             <div>
@@ -87,6 +102,7 @@ export default function Start() {
         </div>
       </section>
 
+      {/* Footer credit information */}
       <footer className="creditPanel">
         <div className="creditInner">
           <div className="creditLine">

@@ -1,6 +1,13 @@
 import { useEffect, useRef } from "react";
 import "./PracticeMode.css";
 
+/**
+ * PracticeMode renders an interactive quiz experience:
+ * - Live mode: shows questions, records chosen answers, advances through quiz
+ * - Result mode: shows score + per-question review with correct answers/explanations
+ *
+ * The parent component owns most state; this component focuses on UI + small side-effects.
+ */
 export default function PracticeMode({
   activeSetId,
   activeSet,
@@ -17,14 +24,20 @@ export default function PracticeMode({
   secondsLeft,
   onFinishAttempt,
 }) {
+  // Prevent saving/finishing the same attempt multiple times when results are shown.
   const savedAttemptRef = useRef(false);
+
+  // Tracks the "identity" of the current quiz set to reset savedAttemptRef when the set changes.
   const lastAttemptKeyRef = useRef("");
 
   useEffect(() => {
+    // Build a lightweight key that changes when the active quiz set changes.
+    // Includes: set id + question count + first question id (helps detect refreshed sets).
     const key = `${activeSetId || ""}:${(activeSet?.questions || []).length}:${String(
       activeSet?.questions?.[0]?.id || "",
     )}`;
 
+    // If quiz set changes, allow finishing/saving again for the new attempt.
     if (key && key !== lastAttemptKeyRef.current) {
       lastAttemptKeyRef.current = key;
       savedAttemptRef.current = false;
@@ -32,6 +45,10 @@ export default function PracticeMode({
   }, [activeSetId, activeSet]);
 
   useEffect(() => {
+    // Only trigger finish/save once:
+    // - we have an active set
+    // - results screen is visible
+    // - we haven't already saved this attempt
     if (!activeSetId) return;
     if (!activeSet) return;
     if (!showResult) return;
@@ -41,6 +58,7 @@ export default function PracticeMode({
     onFinishAttempt?.();
   }, [activeSetId, activeSet, showResult, onFinishAttempt]);
 
+  // Do not render practice UI unless an active quiz set exists.
   if (!activeSetId || !activeSet) return null;
 
   const questions = activeSet.questions || [];
@@ -48,6 +66,7 @@ export default function PracticeMode({
 
   const currentQuestion = questions[currentIndex];
 
+  /** Formats seconds as m:ss (e.g., 2:05). */
   function formatTime(sec) {
     const m = Math.floor(sec / 60);
     const s = String(sec % 60).padStart(2, "0");
@@ -57,6 +76,10 @@ export default function PracticeMode({
   const total = questions.length;
   const progressPct = Math.round(((currentIndex + 1) / total) * 100);
   const isLast = currentIndex === total - 1;
+
+  // Determine the currently chosen answer:
+  // - prefer the live "selectedAnswer"
+  // - fall back to the stored attemptAnswers for this question (if any)
   const chosen =
     selectedAnswer ?? attemptAnswers?.[currentQuestion?.id] ?? null;
 
@@ -85,6 +108,7 @@ export default function PracticeMode({
             <div className="pmProgressTrack">
               <div
                 className="pmProgressFill"
+                // In results view, force progress to 100% to indicate completion.
                 style={{ width: `${showResult ? 100 : progressPct}%` }}
               />
             </div>
@@ -112,7 +136,10 @@ export default function PracticeMode({
                   className={isSelected ? "pmOption selected" : "pmOption"}
                   type="button"
                   onClick={() => {
+                    // Update the currently selected answer (UI state).
                     setSelectedAnswer(opt);
+
+                    // Persist the chosen answer for this question in the attempt map.
                     setAttemptAnswers((prev) => ({
                       ...prev,
                       [currentQuestion.id]: opt,
@@ -131,6 +158,7 @@ export default function PracticeMode({
               className="pmPrimary"
               type="button"
               onClick={() => onNext?.(chosen)}
+              // Prevent moving forward until an option is chosen.
               disabled={!chosen}
             >
               {isLast ? "Finish" : "Next"}
@@ -167,6 +195,7 @@ export default function PracticeMode({
 
             <div className="pmReviewGrid">
               {questions.map((q, idx) => {
+                // User's stored answer for this question (if any).
                 const yourAns = attemptAnswers[q.id];
                 const correct = yourAns === q.answer;
 
@@ -188,6 +217,7 @@ export default function PracticeMode({
                       </span>
                     </div>
 
+                    {/* Only show the correct answer block when the user was wrong */}
                     {!correct && (
                       <div className="pmReviewAns">
                         <span className="pmReviewLabel">Correct</span>
@@ -195,6 +225,7 @@ export default function PracticeMode({
                       </div>
                     )}
 
+                    {/* Show explanation when provided by the question data */}
                     {q.explanation && (
                       <div className="pmExplain">
                         <span className="pmReviewLabel">Explanation</span>

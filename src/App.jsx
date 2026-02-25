@@ -11,6 +11,10 @@ import Summaries from "./pages/Summaries";
 import QuizSets from "./pages/QuizSets";
 import CBTRoom from "./pages/CBTRoom";
 
+/**
+ * Route table for hash-based navigation.
+ * Each key maps to a label (for readability) and a React page component.
+ */
 const PAGES = {
   start: { label: "Start", component: Start },
   planner: { label: "Study Planner", component: Planner },
@@ -22,14 +26,20 @@ const PAGES = {
   cbt: { label: "CBT Room", component: CBTRoom },
 };
 
+/**
+ * Normalizes hash routes into known page keys.
+ * Supports aliases so links like #/home or #/timetable still resolve correctly.
+ */
 function normalizeHashKey(rawHash) {
   const raw = rawHash || "#/start";
 
+  // Remove leading "#/" or "#", remove query string, and strip trailing slashes.
   let key = raw.replace(/^#\/?/, "");
   key = key.split("?")[0].trim();
   key = key.replace(/\/+$/, "");
   const lower = key.toLowerCase();
 
+  // Common aliases to make routing more forgiving.
   const ALIASES = {
     "": "start",
     start: "start",
@@ -53,31 +63,55 @@ function normalizeHashKey(rawHash) {
     cbtr: "cbt",
   };
 
+  // Return the alias if it exists; otherwise return the cleaned key.
   return ALIASES[lower] || key;
 }
 
+/**
+ * Returns the current page key from the URL hash.
+ * Falls back to "start" for unknown routes.
+ */
 function getHashPage() {
   const normalized = normalizeHashKey(window.location.hash);
   return PAGES[normalized] ? normalized : "start";
 }
 
+/**
+ * App shell:
+ * - Hash-based navigation
+ * - Top nav + mobile menu
+ * - Page renderer for the active route
+ * - Data reset action (clears localStorage)
+ */
 export default function App() {
   const [page, setPage] = useState(() => getHashPage());
   const [menuOpen, setMenuOpen] = useState(false);
 
+  /**
+   * Listen for browser hash changes and update the active page.
+   */
   useEffect(() => {
     const onHashChange = () => setPage(getHashPage());
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  /**
+   * Close the mobile menu whenever the page changes.
+   */
   useEffect(() => {
-    // close mobile menu on page change
     setMenuOpen(false);
   }, [page]);
 
+  /**
+   * Resolve the active page component from the page map.
+   */
   const ActivePage = useMemo(() => PAGES[page].component, [page]);
 
+  /**
+   * Navigate to a known route.
+   * Falls back to "start" if an unknown route is requested.
+   */
   function go(to) {
     setPage(PAGES[to] ? to : "start");
     window.location.hash = `#/${to}`;
@@ -87,6 +121,7 @@ export default function App() {
     <div className="app">
       <nav className="nav">
         <div className="navLeft">
+          {/* Brand button navigates home */}
           <button
             className="brand"
             onClick={() => go("start")}
@@ -103,6 +138,7 @@ export default function App() {
           <p className="subtitle">A Smart Study Planner &amp; Quiz Builder.</p>
         </div>
 
+        {/* Mobile menu toggle */}
         <button
           className="menuBtn"
           type="button"
@@ -115,6 +151,7 @@ export default function App() {
           <span className="menuDot" />
         </button>
 
+        {/* Nav links (collapsible on mobile) */}
         <div className={menuOpen ? "navLinks open" : "navLinks"}>
           <button
             className={page === "start" ? "navBtn active" : "navBtn"}
@@ -164,6 +201,7 @@ export default function App() {
             Summaries
           </button>
 
+          {/* Clears localStorage state and forces a full reload to reset UI cleanly */}
           <button
             className="navBtn danger"
             onClick={() => {
@@ -178,6 +216,7 @@ export default function App() {
         </div>
       </nav>
 
+      {/* Active page renderer */}
       <main className="page">
         <ActivePage />
       </main>

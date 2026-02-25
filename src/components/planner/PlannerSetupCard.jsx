@@ -7,6 +7,13 @@ import {
 } from "../../lib/dateHelpers";
 import "./PlannerSetupCard.css";
 
+/**
+ * Planner setup UI for:
+ * - Step 1: Adding a course (name, exam date, priority/workload)
+ * - Step 2: Defining study availability (days + time window + session length)
+ *
+ * All form state is controlled by the parent component via props.
+ */
 export default function PlannerSetupCard({
   // course form
   name,
@@ -35,6 +42,7 @@ export default function PlannerSetupCard({
         </p>
       </header>
 
+      {/* Course creation form (submit handled by parent via onAddCourse) */}
       <form onSubmit={onAddCourse} className="pscFormGrid">
         <div className="field">
           <label>Course name</label>
@@ -49,6 +57,7 @@ export default function PlannerSetupCard({
         <div className="field">
           <label>Exam date</label>
           <DatePicker
+            // DatePicker uses Date objects; helpers convert between ISO strings and Date.
             selected={isoToDate(examDate)}
             onChange={(d) => setExamDate(dateToIso(d))}
             placeholderText="Select exam date"
@@ -68,6 +77,7 @@ export default function PlannerSetupCard({
             value={workload}
             onChange={(e) => setWorkload(Number(e.target.value))}
           >
+            {/* Generate priority options 1..10 */}
             {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
               <option id="priority-option" key={n} value={n}>
                 {n}
@@ -97,6 +107,7 @@ export default function PlannerSetupCard({
 
       <div className="pscAvailability">
         <div className="pscDays">
+          {/* Day-of-week chip selector (stored as array of short day strings) */}
           {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => {
             const selected = (availability?.days || []).includes(d);
 
@@ -106,6 +117,7 @@ export default function PlannerSetupCard({
                 type="button"
                 className={selected ? "pscChip active" : "pscChip"}
                 onClick={() => {
+                  // Toggle selected day in the availability.days array.
                   const currentDays = availability?.days || [];
                   const nextDays = selected
                     ? currentDays.filter((x) => x !== d)
@@ -124,6 +136,7 @@ export default function PlannerSetupCard({
           <div className="field">
             <label>Start time</label>
             <DatePicker
+              // Times are stored as "HH:mm" strings; helpers convert to/from Date objects.
               selected={hhmmToDate(availability?.startTime || "18:00")}
               onChange={(d) =>
                 setAvailability({
@@ -171,6 +184,7 @@ export default function PlannerSetupCard({
               onChange={(e) =>
                 setAvailability({
                   ...(availability || {}),
+                  // Store as a number to simplify schedule calculations.
                   sessionMinutes: Number(e.target.value),
                 })
               }
@@ -186,6 +200,7 @@ export default function PlannerSetupCard({
         </div>
       </div>
 
+      {/* Validation errors from parent (shown as a list) */}
       {errors.length > 0 && (
         <div className="errorBox pscError">
           <strong>Please fix:</strong>

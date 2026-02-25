@@ -1,5 +1,10 @@
 import "./QuizSetsTable.css";
 
+/**
+ * QuizSetsTable displays all saved quiz sets and provides actions to:
+ * - Open a set (enter the CBT room for that set)
+ * - Remove a set
+ */
 export default function QuizSetsTable({
   quizSets = [],
   onOpenSet,
@@ -9,11 +14,13 @@ export default function QuizSetsTable({
     <section className="qstCard">
       <div className="qstTop">
         <h3 className="qstTitle">Saved Sets</h3>
+        {/* Display count with correct pluralization */}
         <div className="qstCount">
           {quizSets.length} set{quizSets.length === 1 ? "" : "s"}
         </div>
       </div>
 
+      {/* Empty state when no sets exist */}
       {quizSets.length === 0 ? (
         <div className="qstEmpty">
           <div className="qstEmptyIcon" aria-hidden="true" />
@@ -25,6 +32,7 @@ export default function QuizSetsTable({
           </div>
         </div>
       ) : (
+        // Table-like structure using ARIA roles for accessibility.
         <div className="qstTable" role="table" aria-label="Quiz sets table">
           <div className="qstRow qstHead" role="row">
             <div role="columnheader">Title</div>
@@ -38,6 +46,7 @@ export default function QuizSetsTable({
               </div>
 
               <div className="qstActions" role="cell">
+                {/* Opens the selected set (parent decides what "open" does) */}
                 <button
                   className="qstOpen"
                   type="button"
@@ -46,6 +55,7 @@ export default function QuizSetsTable({
                   CBT Room
                 </button>
 
+                {/* Removes the selected set (parent handles deletion) */}
                 <button
                   className="qstRemove"
                   type="button"
