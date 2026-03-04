@@ -394,32 +394,62 @@ ${safeMaterial}
 /* -------------------- API: summarize (with chunking) -------------------- */
 
 /**
+ * Summarization prompt notes:
+ * Goal = "content compression", not "document description".
+ * We explicitly forbid meta narration (e.g., "This document discusses...").
+ * Output is general-purpose: works for academic, religious, health, policy, etc.
+ */
+function buildSummaryPrompt({ title, material, partLabel }) {
+  const safeTitle = title || "Untitled";
+
+  return `
+You are a skilled summarizer and note-taker.
+
+Your job is to summarize the INFORMATION inside the material so a reader can understand it quickly without reading the original.
+
+IMPORTANT:
+- Do NOT describe the document (avoid phrases like: "this handout explains", "this document covers", "this course introduces").
+- Do NOT add outside knowledge.
+- Keep the meaning accurate, but remove repetition and extra words.
+
+Write the summary as clear notes with these sections:
+
+1) Main Ideas (bullets; capture the core themes, arguments, or concepts)
+2) Key Points (bullets; include important details, steps, rules, or arguments)
+3) Important Terms / Definitions (only if they appear in the material)
+4) Requirements / Rules / Logistics (only if present: grading, deadlines, policies, instructions, etc.)
+5) Practical Takeaways (2–8 bullets: what the reader should do/remember)
+Optional:
+- If the material clearly looks like a course handout (mentions exam, quiz, grading, assignments), add:
+  "Likely Exam Focus"
+Otherwise, do NOT include any exam section.
+
+Style:
+- Use simple, clear language.
+- Prefer bullets and short paragraphs.
+- Keep it significantly shorter than the original.
+- If the material contains lists/tables/weekly outlines, compress them into a concise list.
+
+Material Title: ${safeTitle}
+${partLabel ? `\n${partLabel}\n` : ""}Material:
+${material}
+`.trim();
+}
+
+/**
  * Summarizes a single chunk of the study material.
  * Used when the input is too large for a single request.
  */
 async function summarizeChunk({ title, chunkText, index, total }) {
-  const prompt = `
-You are an expert academic tutor.
+  const prompt = buildSummaryPrompt({
+    title,
+    material: chunkText,
+    partLabel: `PART ${index + 1} of ${total}`,
+  });
 
-Summarize PART ${index + 1} of ${total} from the study material "${title || "Untitled"}".
-
-Rules:
-- Be clear and structured.
-- Do NOT invent facts.
-- Prefer bullets where helpful.
-
-Return:
-1) Short overview (2–4 sentences)
-2) Key points (bullets)
-3) Definitions (if any)
-4) Likely exam focus (bullets)
-
-Material (PART ${index + 1}/${total}):
-${chunkText}
-`;
   const r = await client.chat.completions.create({
     model: "gpt-4.1-mini",
-    temperature: 0.3,
+    temperature: 0.2,
     messages: [{ role: "user", content: prompt }],
   });
 
@@ -431,28 +461,34 @@ ${chunkText}
  * This step reduces duplication and improves readability.
  */
 async function combineSummaries({ title, partials }) {
+  const safeTitle = title || "Untitled";
+
   const prompt = `
-You are an expert academic tutor.
+You are a skilled summarizer and editor.
 
-Combine these partial summaries into ONE clean final summary for "${title || "Untitled"}".
+Combine the partial summaries into ONE final summary for: "${safeTitle}".
 
-Rules:
-- Merge duplicates.
-- Keep it concise but complete.
-- Make it readable.
+IMPORTANT:
+- Do NOT describe the document (avoid: "this material covers...", "this handout discusses...").
+- Merge duplicates and remove repeated bullets.
+- Keep only information that appears in the partials.
+- Make the final result clean, structured, and easy to read.
 
-Return:
-1) A concise overview paragraph.
-2) Key concepts in bullet points.
-3) Important definitions (if applicable).
-4) Exam tips / likely test focus areas.
+Return the final output in this exact structure:
+
+1) Main Ideas
+2) Key Points
+3) Important Terms / Definitions (only if present)
+4) Requirements / Rules / Logistics (only if present)
+5) Practical Takeaways
 
 Partial summaries:
 ${partials.map((p, i) => `\n--- PART ${i + 1} ---\n${p}\n`).join("")}
-`;
+`.trim();
+
   const r = await client.chat.completions.create({
     model: "gpt-4.1-mini",
-    temperature: 0.3,
+    temperature: 0.2,
     messages: [{ role: "user", content: prompt }],
   });
 
@@ -483,26 +519,15 @@ app.post("/api/summarize", async (req, res) => {
     });
 
     if (material.length <= MAX_SINGLEPASS_CHARS) {
-      const prompt = `
-You are an expert academic tutor.
-
-Summarize the following study material clearly and intelligently.
-
-Return:
-1. A concise overview paragraph.
-2. Key concepts in bullet points.
-3. Important definitions (if applicable).
-4. Exam tips / likely test focus areas.
-
-Material Title: ${title}
-
-Material:
-${material}
-`;
+      const prompt = buildSummaryPrompt({
+        title,
+        material,
+        partLabel: "",
+      });
 
       const response = await client.chat.completions.create({
         model: "gpt-4.1-mini",
-        temperature: 0.3,
+        temperature: 0.2,
         messages: [{ role: "user", content: prompt }],
       });
 
