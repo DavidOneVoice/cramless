@@ -1,4 +1,5 @@
 import "./QuizSetsTable.css";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 
 /**
  * QuizSetsTable displays all saved quiz sets and provides actions to:
@@ -61,7 +62,7 @@ export default function QuizSetsTable({
                   type="button"
                   onClick={() => onRemoveSet?.(s.id)}
                 >
-                  Remove
+                  <DeleteForeverIcon />
                 </button>
               </div>
             </div>
