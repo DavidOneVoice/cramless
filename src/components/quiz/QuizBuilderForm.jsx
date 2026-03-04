@@ -147,7 +147,7 @@ export default function QuizBuilderForm({
 
         <div className="qbActions">
           <button className="qbPrimary" type="button" onClick={onSave}>
-            Save Quiz Set
+            Save Document
           </button>
         </div>
       </div>
