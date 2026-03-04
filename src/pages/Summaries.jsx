@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { loadState } from "../lib/storage";
+import CloseIcon from "@mui/icons-material/Close";
 import "./Summaries.css";
 
 /**
@@ -203,7 +204,7 @@ export default function Summaries() {
                   type="button"
                   onClick={() => setOpenSetId("")}
                 >
-                  Close
+                  <CloseIcon />
                 </button>
               </div>
             </header>
