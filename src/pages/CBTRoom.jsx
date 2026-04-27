@@ -231,8 +231,9 @@ export default function CBTRoom() {
         return [];
       }
 
-      // Ensure the backend returns exactly the amount requested so UI and quiz flow stay consistent.
-      if (questions.length !== count) {
+      // Allow partial results as long as we have enough questions for a meaningful attempt.
+      // (AI output can occasionally undershoot the requested count.)
+      if (questions.length < 3) {
         setError(
           `Expected ${count} questions, but got ${questions.length}. Please try again.`,
         );
