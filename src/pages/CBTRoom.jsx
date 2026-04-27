@@ -296,13 +296,14 @@ export default function CBTRoom() {
     (async () => {
       const questions = await generateWithAI(setId, count);
       if (!questions.length) return;
+      const actualCount = questions.length;
 
       // Start timer (in seconds) and initialize UI state for a new attempt.
       start(mins * 60);
       startPractice(setId);
 
       // Normalize URL to reflect the active quiz settings.
-      window.location.hash = `#/cbt?setId=${setId}&count=${count}&mins=${mins}`;
+      window.location.hash = `#/cbt?setId=${setId}&count=${actualCount}&mins=${mins}`;
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.quizSets]);
@@ -319,13 +320,15 @@ export default function CBTRoom() {
 
     const questions = await generateWithAI(activeSetId, count);
     if (!questions.length) return;
+    const actualCount = questions.length;
 
     start(mins * 60);
     startPractice(activeSetId);
+    window.location.hash = `#/cbt?setId=${activeSetId}&count=${actualCount}&mins=${mins}`;
   }
 
   // Read the configured count/mins for displaying in the HUD.
-  const count = getIntParam("count", 10);
+  const count = activeSet?.questions?.length || getIntParam("count", 10);
   const mins = getIntParam("mins", count);
 
   /**

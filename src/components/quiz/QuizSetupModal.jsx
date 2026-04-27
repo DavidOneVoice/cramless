@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import "./QuizSetupModal.css";
 
 /**
@@ -23,17 +23,6 @@ export default function QuizSetupModal({
   const [count, setCount] = useState(defaultCount);
   const [useAutoTime, setUseAutoTime] = useState(true);
   const [customMinutes, setCustomMinutes] = useState("");
-
-  /**
-   * Reset modal state whenever it opens (or when defaultCount changes),
-   * so each new open starts from predictable defaults.
-   */
-  useEffect(() => {
-    if (!open) return;
-    setCount(defaultCount);
-    setUseAutoTime(true);
-    setCustomMinutes("");
-  }, [open, defaultCount]);
 
   // Auto duration rule: 1 minute per question (minimum of 1 minute).
   const autoMinutes = Math.max(1, Number(count || 1));

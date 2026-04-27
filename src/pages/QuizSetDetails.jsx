@@ -368,6 +368,7 @@ export default function QuizSetDetails() {
 
       {/* Setup modal for starting a quiz */}
       <QuizSetupModal
+        key={`${set.id}:${setupOpen ? "open" : "closed"}`}
         open={setupOpen}
         title="Take Quiz"
         setTitle={set.title}
