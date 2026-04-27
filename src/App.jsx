@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { resetState } from "./lib/storage";
 import "./App.css";
 import "./styles/ui.css";
-import QuizSetDetails from "./pages/QuizSetDetails";
-import Start from "./pages/Start";
-import Planner from "./pages/Planner";
-import Schedule from "./pages/Schedule";
-import QuizBuilder from "./pages/QuizBuilder";
-import Summaries from "./pages/Summaries";
-import QuizSets from "./pages/QuizSets";
-import CBTRoom from "./pages/CBTRoom";
+
+const Start = lazy(() => import("./pages/Start"));
+const Planner = lazy(() => import("./pages/Planner"));
+const Schedule = lazy(() => import("./pages/Schedule"));
+const QuizBuilder = lazy(() => import("./pages/QuizBuilder"));
+const QuizSets = lazy(() => import("./pages/QuizSets"));
+const Summaries = lazy(() => import("./pages/Summaries"));
+const QuizSetDetails = lazy(() => import("./pages/QuizSetDetails"));
+const CBTRoom = lazy(() => import("./pages/CBTRoom"));
 
 /**
  * Route table for hash-based navigation.
@@ -91,17 +92,13 @@ export default function App() {
    * Listen for browser hash changes and update the active page.
    */
   useEffect(() => {
-    const onHashChange = () => setPage(getHashPage());
+    const onHashChange = () => {
+      setPage(getHashPage());
+      setMenuOpen(false);
+    };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
-
-  /**
-   * Close the mobile menu whenever the page changes.
-   */
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [page]);
 
   /**
    * Resolve the active page component from the page map.
@@ -113,8 +110,10 @@ export default function App() {
    * Falls back to "start" if an unknown route is requested.
    */
   function go(to) {
-    setPage(PAGES[to] ? to : "start");
-    window.location.hash = `#/${to}`;
+    const nextPage = PAGES[to] ? to : "start";
+    setPage(nextPage);
+    setMenuOpen(false);
+    window.location.hash = `#/${nextPage}`;
   }
 
   return (
@@ -218,7 +217,9 @@ export default function App() {
 
       {/* Active page renderer */}
       <main className="page">
-        <ActivePage />
+        <Suspense fallback={<section className="card">Loading page…</section>}>
+          <ActivePage />
+        </Suspense>
       </main>
     </div>
   );

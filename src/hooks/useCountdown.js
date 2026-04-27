@@ -23,13 +23,17 @@ export function useCountdown() {
    */
   useEffect(() => {
     if (!isRunning) return;
+    if (secondsLeft <= 0) return;
 
-    if (secondsLeft <= 0) {
-      setIsRunning(false);
-      return;
-    }
-
-    const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    const t = setTimeout(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          setIsRunning(false);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
     return () => clearTimeout(t);
   }, [isRunning, secondsLeft]);
 
