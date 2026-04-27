@@ -26,6 +26,7 @@ app.use((req, res, next) => {
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const MCQ_MODELS = ["gpt-4.1-mini", "gpt-4o-mini"];
 
 /* -------------------- shared helpers -------------------- */
 
@@ -329,15 +330,7 @@ ${chunkText}
 Variation nonce: ${attemptNonce}
 `.trim();
 
-  const resp = await client.chat.completions.create({
-    model: "gpt-4.1-mini",
-    temperature: 0.7,
-    response_format: { type: "json_object" },
-    max_completion_tokens: 3500,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const rawText = resp.choices?.[0]?.message?.content || "{}";
+  const rawText = await generateJsonForQuestions(prompt);
 
   let data;
   try {
@@ -376,6 +369,63 @@ Variation nonce: ${attemptNonce}
     .filter(Boolean);
 
   return filterOutAdministrativeQuestions(normalized);
+}
+
+function extractJsonObject(text = "") {
+  const src = String(text || "").trim();
+  if (!src) return "{}";
+
+  const fencedMatch = src.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fencedMatch?.[1]) return fencedMatch[1].trim();
+
+  const firstBrace = src.indexOf("{");
+  const lastBrace = src.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return src.slice(firstBrace, lastBrace + 1);
+  }
+
+  return src;
+}
+
+async function generateJsonForQuestions(prompt) {
+  let lastErr = null;
+
+  for (const model of MCQ_MODELS) {
+    try {
+      const r = await client.chat.completions.create({
+        model,
+        temperature: 0.7,
+        response_format: { type: "json_object" },
+        max_tokens: 3500,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      return extractJsonObject(r.choices?.[0]?.message?.content || "{}");
+    } catch (errA) {
+      lastErr = errA;
+      const msgA = String(errA?.message || "").toLowerCase();
+      const unsupportedMaxTokens =
+        msgA.includes("max_tokens") && msgA.includes("unsupported");
+
+      if (!unsupportedMaxTokens) continue;
+
+      try {
+        const r = await client.chat.completions.create({
+          model,
+          temperature: 0.7,
+          response_format: { type: "json_object" },
+          max_completion_tokens: 3500,
+          messages: [{ role: "user", content: prompt }],
+        });
+
+        return extractJsonObject(r.choices?.[0]?.message?.content || "{}");
+      } catch (errB) {
+        lastErr = errB;
+      }
+    }
+  }
+
+  throw lastErr || new Error("Failed to generate quiz questions.");
 }
 
 /* -------------------- API: generate MCQs -------------------- */
