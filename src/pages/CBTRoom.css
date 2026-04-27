@@ -150,6 +150,41 @@
   display: grid;
   gap: 8px;
   max-width: 520px;
+  justify-items: end;
+}
+
+.cbtExportBtn {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(
+    135deg,
+    rgba(63, 61, 255, 0.22),
+    rgba(149, 76, 233, 0.2)
+  );
+  color: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    filter 150ms ease;
+}
+
+.cbtExportBtn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.32);
+  filter: brightness(1.08);
+}
+
+.cbtExportBtn:active {
+  transform: translateY(0);
+}
+
+.cbtExportBtn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
 }
 
 .cbtError {
