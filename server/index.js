@@ -1,3 +1,4 @@
+/* eslint-env node */
 import express from "express";
 import cors from "cors";
 import "dotenv/config";
@@ -7,11 +8,6 @@ import crypto from "crypto";
 
 const app = express();
 
-/**
- * CORS configuration:
- * - If FRONTEND_ORIGIN is provided (comma-separated), only those origins are allowed.
- * - Otherwise, allow all origins (useful during local/dev; review for production).
- */
 app.use(
   cors({
     origin: process.env.FRONTEND_ORIGIN
@@ -20,47 +16,27 @@ app.use(
   }),
 );
 
-// Keep this small-ish so uploads don’t crash memory, but enough for typical text
 app.use(express.json({ limit: "4mb" }));
 
-/**
- * Lightweight request logging for debugging and monitoring.
- * (Consider using a structured logger in production.)
- */
 app.use((req, res, next) => {
   console.log("INCOMING:", req.method, req.url);
   next();
 });
 
-/** Simple health check endpoint for uptime monitoring. */
 app.get("/health", (req, res) => res.json({ ok: true }));
 
-/**
- * OpenAI client setup.
- * Requires OPENAI_API_KEY in environment variables.
- */
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-/* -------------------- text safety helpers -------------------- */
+/* -------------------- shared helpers -------------------- */
 
-/** Normalizes text by collapsing whitespace and trimming edges. */
 function normalizeText(s = "") {
   return String(s).replace(/\s+/g, " ").trim();
 }
 
-/**
- * Caps large text but keeps coverage:
- * - head (start)
- * - middle slice
- * - tail (end)
- *
- * This helps reduce prompt size while still capturing context across the material.
- */
 function capTextEvenly(text, maxChars) {
   const t = normalizeText(text);
   if (t.length <= maxChars) return { text: t, truncated: false };
 
-  // 40% head, 20% middle, 40% tail
   const headLen = Math.floor(maxChars * 0.4);
   const midLen = Math.floor(maxChars * 0.2);
   const tailLen = maxChars - headLen - midLen;
@@ -75,7 +51,6 @@ function capTextEvenly(text, maxChars) {
 
   const tail = t.slice(Math.max(0, t.length - tailLen));
 
-  // Markers help users understand the material was trimmed and where excerpts came from.
   const joined = [
     head,
     "\n\n[...MIDDLE EXTRACT...]\n\n",
@@ -88,32 +63,22 @@ function capTextEvenly(text, maxChars) {
   return { text: joined, truncated: true };
 }
 
-/**
- * Splits text into fixed-size chunks for multi-step summarization.
- * Chunking helps avoid context-length errors on large inputs.
- */
 function splitIntoChunks(text, chunkChars = 12000) {
   const t = normalizeText(text);
   if (!t) return [];
+
   const chunks = [];
   for (let i = 0; i < t.length; i += chunkChars) {
     chunks.push(t.slice(i, i + chunkChars));
   }
+
   return chunks;
 }
 
-/**
- * Converts OpenAI/SDK errors into user-friendly API responses:
- * - 413 for payload/context-size issues
- * - 429 for rate limits
- * - falls back to server error status/message
- */
 function friendlyOpenAIError(err) {
   const msg = err?.error?.message || err?.message || "OpenAI request failed";
-
   const lower = String(msg).toLowerCase();
 
-  // Common “too big” signals
   if (
     lower.includes("context length") ||
     lower.includes("maximum context") ||
@@ -129,7 +94,6 @@ function friendlyOpenAIError(err) {
     };
   }
 
-  // Rate limits / TPM / RPM
   if (
     lower.includes("rate limit") ||
     lower.includes("tokens per minute") ||
@@ -145,17 +109,15 @@ function friendlyOpenAIError(err) {
     };
   }
 
-  return { status: err?.status || 500, error: msg, detail: msg };
+  return {
+    status: err?.status || 500,
+    error: msg,
+    detail: msg,
+  };
 }
 
-/* -------------------- diversity helpers (unchanged) -------------------- */
+/* -------------------- diversity helpers -------------------- */
 
-/**
- * Tokenizes text for similarity checks:
- * - lowercase
- * - remove punctuation
- * - keep words of length >= 3
- */
 function tokenize(s) {
   return String(s || "")
     .toLowerCase()
@@ -164,35 +126,24 @@ function tokenize(s) {
     .filter((w) => w.length >= 3);
 }
 
-/**
- * Jaccard similarity over token sets.
- * Used to reduce repeated or near-duplicate question prompts.
- */
 function jaccard(a, b) {
   const A = new Set(tokenize(a));
   const B = new Set(tokenize(b));
   if (!A.size || !B.size) return 0;
 
   let inter = 0;
-  for (const x of A) if (B.has(x)) inter++;
+  for (const x of A) {
+    if (B.has(x)) inter++;
+  }
 
   const union = A.size + B.size - inter;
   return union ? inter / union : 0;
 }
 
-/**
- * Returns true if `prompt` is too similar to any item in `list`
- * using the provided similarity threshold.
- */
 function isTooSimilar(prompt, list, threshold) {
   return list.some((old) => jaccard(prompt, old) >= threshold);
 }
 
-/**
- * Selects a diverse subset of questions:
- * - avoids prompts similar to previously asked prompts (avoidList)
- * - avoids duplicates within the new selection (chosenPrompts)
- */
 function selectDiverseQuestions(pool, avoidList, finalCount) {
   const selected = [];
   const chosenPrompts = [];
@@ -201,9 +152,9 @@ function selectDiverseQuestions(pool, avoidList, finalCount) {
     if (selected.length >= finalCount) break;
 
     if (avoidList.length && isTooSimilar(q.prompt, avoidList, 0.45)) continue;
-
-    if (chosenPrompts.length && isTooSimilar(q.prompt, chosenPrompts, 0.55))
+    if (chosenPrompts.length && isTooSimilar(q.prompt, chosenPrompts, 0.55)) {
       continue;
+    }
 
     selected.push(q);
     chosenPrompts.push(q.prompt);
@@ -212,96 +163,182 @@ function selectDiverseQuestions(pool, avoidList, finalCount) {
   return selected;
 }
 
-/* -------------------- API: generate MCQs -------------------- */
+function normalizePromptKey(prompt = "") {
+  return String(prompt)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-app.post("/api/generate-mcqs", async (req, res) => {
-  try {
-    const {
-      title,
-      sourceText,
-      count = 10,
-      difficulty = "mixed",
-      avoid = [],
-      nonce,
-    } = req.body;
+function dedupeQuestionPool(questions) {
+  const seen = new Set();
+  const out = [];
 
-    // Basic validation: ensures enough text to generate meaningful MCQs.
-    if (!sourceText || normalizeText(sourceText).length < 80) {
-      return res
-        .status(400)
-        .json({ error: "Please provide more study material text." });
+  for (const q of questions) {
+    const key = normalizePromptKey(q.prompt);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(q);
+  }
+
+  return out;
+}
+
+/* -------------------- MCQ helpers -------------------- */
+
+function splitIntoQuestionChunks(text, chunkChars = 6000, overlapChars = 500) {
+  const t = normalizeText(text);
+  if (!t) return [];
+
+  const chunks = [];
+  let start = 0;
+
+  while (start < t.length) {
+    const end = Math.min(start + chunkChars, t.length);
+    const chunk = t.slice(start, end).trim();
+
+    if (chunk.length >= 300) {
+      chunks.push(chunk);
     }
 
-    // Keep prompt under control
-    const MAX_MCQ_SOURCE_CHARS = 35000;
-    const { text: safeMaterial, truncated } = capTextEvenly(
-      sourceText,
-      MAX_MCQ_SOURCE_CHARS,
-    );
+    if (end >= t.length) break;
+    start = Math.max(end - overlapChars, start + 1);
+  }
 
-    // Enforce reasonable bounds on how many questions can be requested at once.
-    const safeCount = Math.max(5, Math.min(Number(count) || 10, 25));
-    // Build a larger pool first, then filter down for diversity.
-    const poolCount = Math.min(40, safeCount * 4);
+  return chunks;
+}
 
-    // Sanitize avoid-list: strings only, non-empty, and capped for safety.
-    const safeAvoid = Array.isArray(avoid)
-      ? avoid
-          .filter((x) => typeof x === "string" && x.trim().length > 0)
-          .slice(0, 40)
-      : [];
+function isAdministrativeChunk(text = "") {
+  const t = text.toLowerCase();
 
-    // Useful server-side telemetry for debugging prompt sizes and diversity behavior.
-    console.log("MCQ request:", {
-      title,
-      count: safeCount,
-      poolCount,
-      avoidCount: safeAvoid.length,
-      truncatedMaterial: truncated,
-      materialChars: normalizeText(sourceText).length,
-      usedChars: safeMaterial.length,
-    });
+  const adminSignals = [
+    "course manual",
+    "course outline",
+    "course code",
+    "facilitator",
+    "instructor",
+    "lecturer",
+    "department of",
+    "grading",
+    "marks",
+    "discussion forum",
+    "assignment submission",
+    "academic honesty",
+    "attendance",
+    "deadline",
+    "learning outcomes",
+    "general instructions",
+    "student responsibilities",
+    "final exam",
+    "continuous assessment",
+    "point value",
+    "table of contents",
+  ];
 
-    // Nonce helps encourage variation across retries for similar material.
-    const baseNonce =
-      typeof nonce === "string" && nonce.trim().length > 0
-        ? nonce.trim()
-        : crypto.randomUUID();
+  let hits = 0;
+  for (const signal of adminSignals) {
+    if (t.includes(signal)) hits++;
+  }
 
-    let finalQuestions = [];
+  return hits >= 3;
+}
 
-    // Retry up to 3 times to get sufficiently diverse, valid JSON questions.
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const attemptNonce = attempt === 0 ? baseNonce : crypto.randomUUID();
+function isAdministrativeQuestion(prompt = "", explanation = "") {
+  const p = `${prompt} ${explanation}`.toLowerCase();
 
-      const prompt = `
+  const badPatterns = [
+    "course manual",
+    "according to the course manual",
+    "which module",
+    "which unit",
+    "module covers",
+    "unit covers",
+    "department",
+    "lecturer",
+    "instructor",
+    "facilitator",
+    "platform",
+    "discussion forum",
+    "group discussion",
+    "assignment",
+    "submission",
+    "deadline",
+    "grading",
+    "marks",
+    "point value",
+    "final exam combined",
+    "academic honesty",
+    "attendance",
+    "learning outcome",
+    "learning outcomes",
+    "course title",
+    "course code",
+    "outlined in the",
+    "listed as a learning outcome",
+    "not listed as a learning outcome",
+  ];
+
+  return badPatterns.some((pattern) => p.includes(pattern));
+}
+
+function isWeakMetaQuestion(prompt = "") {
+  const p = prompt.toLowerCase().trim();
+
+  return p.startsWith("which module") || p.startsWith("which unit");
+}
+
+function filterOutAdministrativeQuestions(questions = []) {
+  return questions.filter(
+    (q) =>
+      q &&
+      !isAdministrativeQuestion(q.prompt, q.explanation) &&
+      !isWeakMetaQuestion(q.prompt),
+  );
+}
+
+async function generateQuestionsForChunk({
+  title,
+  chunkText,
+  count,
+  difficulty,
+  avoid = [],
+  chunkIndex = 0,
+  totalChunks = 1,
+}) {
+  const attemptNonce = crypto.randomUUID();
+
+  const prompt = `
 You are an expert exam setter and tutor.
 
-Create ${poolCount} high-quality multiple-choice questions (MCQs) from the study material below.
+Generate ${count} high-quality multiple-choice questions from the study material below.
 
-VERY IMPORTANT:
-- Generate a wide variety of questions. Do not repeat the same "obvious" ones.
-- Avoid reusing or paraphrasing these previous question prompts:
-${safeAvoid.length ? `- ${safeAvoid.join("\n- ")}` : "- (none)"}
+IMPORTANT:
+- Use ONLY the study material provided below.
+- Focus on the actual subject matter being taught.
+- Prioritize concepts, explanations, principles, definitions, methods, formulas, applications, reasoning, and practical understanding.
+- DO NOT generate questions about course manual structure, lecturer advice, grading policy, assignment rules, discussion rules, attendance, deadlines, module numbering, point allocation, or other administrative details.
+- DO NOT ask questions about the document itself.
+- DO NOT ask “which module/unit covers...” style questions.
+- DO NOT ask “according to the course manual...” style questions.
+- If the material contains both real subject content and administrative material, ignore the administrative material and generate questions only from the real subject content.
+- Questions must feel like actual test/practice questions on the topic, not questions about the handout.
+
+Avoid reusing or paraphrasing these previous question prompts:
+${avoid.length ? `- ${avoid.join("\n- ")}` : "- (none)"}
 
 Requirements:
-- Difficulty: ${difficulty} (easy/medium/hard/mixed)
+- Difficulty: ${difficulty}
 - Each question must be clear, complete, and based strictly on the material.
-- 4 options (A-D).
+- Prioritize concept understanding over document trivia.
+- Ask about ideas, definitions, applications, reasoning, steps, methods, formulas, interpretations, and examples where relevant.
+- 4 options only.
 - Exactly 1 correct answer.
-- Provide a short explanation for why it's correct.
-- Use natural language. No broken fragments.
-- Avoid repeating the same question style. Mix:
-  - definitions
-  - conceptual understanding
-  - application/scenario
-  - misconception checks
-  - calculations (if relevant)
+- Provide a short explanation.
+- Do not use broken fragments.
+- Return valid JSON only.
 
-Variation nonce: ${attemptNonce}
-
-Output MUST be valid JSON ONLY in this exact structure:
-
+Output format:
 {
   "questions": [
     {
@@ -314,74 +351,223 @@ Output MUST be valid JSON ONLY in this exact structure:
 }
 
 Title: ${title || "Untitled"}
+Chunk: ${chunkIndex + 1} of ${totalChunks}
+
 Study Material:
-${safeMaterial}
-`;
+${chunkText}
 
-      const resp = await client.chat.completions.create({
-        model: "gpt-4.1-mini",
-        temperature: 1.0,
-        presence_penalty: 0.9,
-        frequency_penalty: 0.5,
-        // Force strict JSON output to simplify parsing on the server.
-        response_format: { type: "json_object" },
-        messages: [{ role: "user", content: prompt }],
-      });
+Variation nonce: ${attemptNonce}
+`.trim();
 
-      const rawText = resp.choices?.[0]?.message?.content || "{}";
+  const resp = await client.chat.completions.create({
+    model: "gpt-4.1-mini",
+    temperature: 0.7,
+    response_format: { type: "json_object" },
+    max_completion_tokens: 3500,
+    messages: [{ role: "user", content: prompt }],
+  });
 
-      let data;
-      // If parsing fails, retry with a new nonce (next loop iteration).
-      try {
-        data = JSON.parse(rawText);
-      } catch {
-        continue;
-      }
+  const rawText = resp.choices?.[0]?.message?.content || "{}";
 
-      const rawQs = Array.isArray(data.questions) ? data.questions : [];
+  let data;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    return [];
+  }
 
-      // Validate and normalize the model output into the API's expected structure.
-      const pool = rawQs
-        .map((q) => {
-          const opts = Array.isArray(q.options) ? q.options : [];
-          const idx = Number.isInteger(q.answerIndex) ? q.answerIndex : -1;
+  const rawQs = Array.isArray(data.questions) ? data.questions : [];
 
-          if (!q?.prompt || typeof q.prompt !== "string") return null;
-          if (opts.length !== 4) return null;
-          if (idx < 0 || idx > 3) return null;
+  const normalized = rawQs
+    .map((q) => {
+      const opts = Array.isArray(q.options) ? q.options : [];
+      const idx = Number.isInteger(q.answerIndex) ? q.answerIndex : -1;
 
-          return {
-            id: crypto.randomUUID(),
-            prompt: q.prompt.trim(),
-            options: opts.map((x) => String(x || "").trim()),
-            // Convenience field: the actual answer text derived from answerIndex.
-            answer: opts[idx],
-            explanation: typeof q.explanation === "string" ? q.explanation : "",
-          };
-        })
-        .filter(Boolean);
+      if (!q?.prompt || typeof q.prompt !== "string") return null;
+      if (opts.length !== 4) return null;
+      if (idx < 0 || idx > 3) return null;
 
-      if (!pool.length) continue;
+      const cleanPrompt = q.prompt.trim();
+      const cleanOptions = opts.map((x) => String(x || "").trim());
+      const cleanExplanation =
+        typeof q.explanation === "string" ? q.explanation.trim() : "";
 
-      const selected = selectDiverseQuestions(pool, safeAvoid, safeCount);
+      if (!cleanPrompt) return null;
+      if (cleanOptions.some((opt) => !opt)) return null;
 
-      // Ensure we return a meaningful minimum set before accepting an attempt.
-      if (selected.length >= Math.min(5, safeCount)) {
-        finalQuestions = selected;
-        break;
-      }
+      return {
+        id: crypto.randomUUID(),
+        prompt: cleanPrompt,
+        options: cleanOptions,
+        answer: cleanOptions[idx],
+        explanation: cleanExplanation,
+      };
+    })
+    .filter(Boolean);
+
+  return filterOutAdministrativeQuestions(normalized);
+}
+
+/* -------------------- API: generate MCQs -------------------- */
+
+app.post("/api/generate-mcqs", async (req, res) => {
+  console.log("=== HIT /api/generate-mcqs ON CURRENT SERVER ===");
+
+  try {
+    const {
+      title,
+      sourceText,
+      count = 10,
+      difficulty = "mixed",
+      avoid = [],
+    } = req.body;
+
+    const material = normalizeText(sourceText);
+
+    if (!material || material.length < 80) {
+      return res
+        .status(400)
+        .json({ error: "Please provide more study material text." });
     }
 
+    const requestedCount = Number(count) || 10;
+    const safeCount = Math.max(1, Math.min(requestedCount, 100));
+
+    const safeAvoid = Array.isArray(avoid)
+      ? avoid
+          .filter((x) => typeof x === "string" && x.trim().length > 0)
+          .slice(0, 40)
+      : [];
+
+    const QUESTION_CHUNK_CHARS = 6000;
+    const QUESTION_CHUNK_OVERLAP = 500;
+
+    const allChunks = splitIntoQuestionChunks(
+      material,
+      QUESTION_CHUNK_CHARS,
+      QUESTION_CHUNK_OVERLAP,
+    );
+
+    if (!allChunks.length) {
+      return res.status(400).json({
+        error: "Unable to process this material for quiz generation.",
+      });
+    }
+
+    let preferredChunks = allChunks.filter(
+      (chunk) => !isAdministrativeChunk(chunk),
+    );
+
+    if (!preferredChunks.length) {
+      preferredChunks = allChunks;
+    }
+
+    console.log("MCQ request:", {
+      title,
+      requestedCount,
+      safeCount,
+      materialChars: material.length,
+      allChunkCount: allChunks.length,
+      preferredChunkCount: preferredChunks.length,
+      avoidCount: safeAvoid.length,
+    });
+
+    let finalQuestions = [];
+    let generatedPrompts = [];
+
+    async function runGenerationRounds(chunksToUse, rounds = 4) {
+      let workingQuestions = [...finalQuestions];
+
+      for (let round = 0; round < rounds; round++) {
+        if (workingQuestions.length >= safeCount) break;
+
+        for (let i = 0; i < chunksToUse.length; i++) {
+          if (workingQuestions.length >= safeCount) break;
+
+          const remaining = safeCount - workingQuestions.length;
+          const batchSize = Math.min(5, Math.max(3, remaining));
+
+          try {
+            const chunkQuestions = await generateQuestionsForChunk({
+              title,
+              chunkText: chunksToUse[i],
+              count: batchSize,
+              difficulty,
+              avoid: [
+                ...safeAvoid,
+                ...generatedPrompts.slice(-80),
+                ...workingQuestions.map((q) => q.prompt).slice(-80),
+              ],
+              chunkIndex: i,
+              totalChunks: chunksToUse.length,
+            });
+
+            console.log(
+              `Round ${round + 1}, chunk ${i + 1}/${chunksToUse.length}, got ${chunkQuestions.length} questions`,
+            );
+
+            generatedPrompts.push(...chunkQuestions.map((q) => q.prompt));
+            if (generatedPrompts.length > 240) {
+              generatedPrompts.splice(0, generatedPrompts.length - 240);
+            }
+
+            workingQuestions = dedupeQuestionPool([
+              ...workingQuestions,
+              ...chunkQuestions,
+            ]);
+          } catch (err) {
+            console.error(
+              `MCQ round ${round + 1} chunk ${i + 1}/${chunksToUse.length} failed`,
+              err,
+            );
+          }
+        }
+      }
+
+      return workingQuestions;
+    }
+
+    finalQuestions = await runGenerationRounds(preferredChunks, 4);
+
+    if (
+      finalQuestions.length < Math.min(safeCount, 20) &&
+      preferredChunks !== allChunks
+    ) {
+      console.log(
+        "Preferred chunks produced too few questions. Falling back to all chunks.",
+      );
+      finalQuestions = await runGenerationRounds(allChunks, 3);
+    }
+
+    finalQuestions = filterOutAdministrativeQuestions(finalQuestions);
+    finalQuestions = dedupeQuestionPool(finalQuestions);
+    finalQuestions = selectDiverseQuestions(
+      finalQuestions,
+      safeAvoid,
+      safeCount,
+    ).slice(0, safeCount);
+
     if (!finalQuestions.length) {
-      return res.status(500).json({
+      return res.status(422).json({
         error:
-          "Could not generate fresh questions (too similar to previous). Try again or upload more material.",
+          "No valid questions could be generated from this material. Try re-uploading the file or using a clearer text extract.",
       });
     }
 
     return res.json({
       questions: finalQuestions,
-      meta: { truncatedMaterial: truncated },
+      meta: {
+        requestedCount: safeCount,
+        returnedCount: finalQuestions.length,
+        partial: finalQuestions.length < safeCount,
+        chunked: true,
+        allChunks: allChunks.length,
+        preferredChunks: preferredChunks.length,
+      },
+      warning:
+        finalQuestions.length < safeCount
+          ? `Generated ${finalQuestions.length} out of ${safeCount} requested questions.`
+          : null,
     });
   } catch (err) {
     console.error(err);
@@ -390,14 +576,8 @@ ${safeMaterial}
   }
 });
 
-/* -------------------- API: summarize (with chunking) -------------------- */
+/* -------------------- API: summarize -------------------- */
 
-/**
- * Summarization prompt notes:
- * Goal = "content compression", not "document description".
- * We explicitly forbid meta narration (e.g., "This document discusses...").
- * Output is general-purpose: works for academic, religious, health, policy, etc.
- */
 function buildSummaryPrompt({ title, material, partLabel }) {
   const safeTitle = title || "Untitled";
 
@@ -418,6 +598,7 @@ Write the summary as clear notes with these sections:
 3) Important Terms / Definitions (only if they appear in the material)
 4) Requirements / Rules / Logistics (only if present: grading, deadlines, policies, instructions, etc.)
 5) Practical Takeaways (2–8 bullets: what the reader should do/remember)
+
 Optional:
 - If the material clearly looks like a course handout (mentions exam, quiz, grading, assignments), add:
   "Likely Exam Focus"
@@ -435,10 +616,6 @@ ${material}
 `.trim();
 }
 
-/**
- * Summarizes a single chunk of the study material.
- * Used when the input is too large for a single request.
- */
 async function summarizeChunk({ title, chunkText, index, total }) {
   const prompt = buildSummaryPrompt({
     title,
@@ -455,10 +632,6 @@ async function summarizeChunk({ title, chunkText, index, total }) {
   return r.choices?.[0]?.message?.content || "";
 }
 
-/**
- * Combines multiple partial summaries into one consolidated summary.
- * This step reduces duplication and improves readability.
- */
 async function combineSummaries({ title, partials }) {
   const safeTitle = title || "Untitled";
 
@@ -498,7 +671,6 @@ app.post("/api/summarize", async (req, res) => {
   try {
     const { title, sourceText } = req.body;
 
-    // Basic validation: ensures enough text to produce a useful summary.
     if (!sourceText || normalizeText(sourceText).length < 50) {
       return res
         .status(400)
@@ -506,9 +678,6 @@ app.post("/api/summarize", async (req, res) => {
     }
 
     const material = normalizeText(sourceText);
-
-    // If it’s small enough, do single-pass.
-    // If big, chunk then combine.
     const MAX_SINGLEPASS_CHARS = 28000;
     const CHUNK_CHARS = 12000;
 
@@ -534,12 +703,10 @@ app.post("/api/summarize", async (req, res) => {
       return res.json({ summary, meta: { chunked: false } });
     }
 
-    // Chunked summary for large material
-    const chunks = splitIntoChunks(material, CHUNK_CHARS).slice(0, 10); // safety cap
+    const chunks = splitIntoChunks(material, CHUNK_CHARS).slice(0, 10);
     const partials = [];
 
     for (let i = 0; i < chunks.length; i++) {
-      // Sequential processing is safer for rate limits and simpler to reason about.
       const part = await summarizeChunk({
         title,
         chunkText: chunks[i],
@@ -562,7 +729,6 @@ app.post("/api/summarize", async (req, res) => {
   }
 });
 
-// Port can be configured via environment variables for deployment platforms.
 const PORT = process.env.PORT || 5050;
 
 app.listen(PORT, () => {
