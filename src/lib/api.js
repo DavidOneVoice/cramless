@@ -1,14 +1,23 @@
 // src/lib/api.js
 
 /**
- * Base URL for backend API requests.
+ * Resolves the backend base URL for API requests.
  *
- * - Uses VITE_API_BASE from environment variables when available.
- * - Falls back to the production Render URL if not defined.
- * - Trims whitespace and removes trailing slashes to ensure consistent URL building.
+ * Priority:
+ * 1) VITE_API_BASE (explicit env override)
+ * 2) Local dev default (http://localhost:5050)
+ * 3) Production hosted backend
  */
-export const API_BASE = (
-  import.meta?.env?.VITE_API_BASE || "https://cramless.onrender.com"
-)
-  .trim()
-  .replace(/\/+$/, "");
+function resolveApiBase() {
+  const fromEnv = String(import.meta?.env?.VITE_API_BASE || "").trim();
+  if (fromEnv) return fromEnv.replace(/\/+$/, "");
+
+  const host = String(window?.location?.hostname || "").toLowerCase();
+  const isLocalHost =
+    host === "localhost" || host === "127.0.0.1" || host === "::1";
+
+  if (isLocalHost) return "http://localhost:5050";
+  return "https://cramless.onrender.com";
+}
+
+export const API_BASE = resolveApiBase();

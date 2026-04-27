@@ -33,36 +33,6 @@ function normalizeText(s = "") {
   return String(s).replace(/\s+/g, " ").trim();
 }
 
-function capTextEvenly(text, maxChars) {
-  const t = normalizeText(text);
-  if (t.length <= maxChars) return { text: t, truncated: false };
-
-  const headLen = Math.floor(maxChars * 0.4);
-  const midLen = Math.floor(maxChars * 0.2);
-  const tailLen = maxChars - headLen - midLen;
-
-  const head = t.slice(0, headLen);
-
-  const midStart = Math.max(
-    0,
-    Math.floor(t.length / 2) - Math.floor(midLen / 2),
-  );
-  const mid = t.slice(midStart, midStart + midLen);
-
-  const tail = t.slice(Math.max(0, t.length - tailLen));
-
-  const joined = [
-    head,
-    "\n\n[...MIDDLE EXTRACT...]\n\n",
-    mid,
-    "\n\n[...END EXTRACT...]\n\n",
-    tail,
-    "\n\n[TRUNCATED FOR SIZE]\n",
-  ].join("");
-
-  return { text: joined, truncated: true };
-}
-
 function splitIntoChunks(text, chunkChars = 12000) {
   const t = normalizeText(text);
   if (!t) return [];
