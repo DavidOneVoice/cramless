@@ -26,6 +26,18 @@ function getIntParam(name, fallback) {
   const v = Number(getQueryParam(name));
   return Number.isFinite(v) && v > 0 ? Math.floor(v) : fallback;
 }
+
+/**
+ * Escapes text for safe interpolation into a printable HTML template.
+ */
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
 // ------------------------------------------------
 
 /**
@@ -353,6 +365,82 @@ export default function CBTRoom() {
     window.location.hash = `#/cbt?setId=${activeSetId}&count=${actualCount}&mins=${mins}`;
   }
 
+  /**
+   * Opens a print-friendly page containing the active question set and triggers
+   * the browser's print flow so the user can "Save as PDF".
+   */
+  function exportQuestionsAsPdf() {
+    if (!activeSet?.questions?.length) {
+      setError("No generated questions available to export yet.");
+      return;
+    }
+
+    const now = new Date();
+    const generatedAt = now.toLocaleString();
+    const slug = activeSet.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const fileName = `${slug || "quiz"}-questions-${now.toISOString().slice(0, 10)}.pdf`;
+
+    const questionBlocks = activeSet.questions
+      .map((q, idx) => {
+        const options = (q.options || [])
+          .map((opt) => `<li>${escapeHtml(opt)}</li>`)
+          .join("");
+
+        return `
+          <article class="qCard">
+            <h3>Question ${idx + 1}</h3>
+            <p>${escapeHtml(q.prompt)}</p>
+            <ol type="A" class="qOptions">${options}</ol>
+          </article>
+        `;
+      })
+      .join("");
+
+    const printHtml = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapeHtml(fileName)}</title>
+          <style>
+            @page { margin: 16mm; }
+            body { font-family: Inter, Arial, sans-serif; color: #111; line-height: 1.45; margin: 0; }
+            h1 { margin: 0 0 8px; font-size: 22px; }
+            .meta { margin-bottom: 18px; color: #444; font-size: 13px; }
+            .qCard { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ddd; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+            .qCard h3 { margin: 0 0 8px; font-size: 15px; }
+            .qCard p { margin: 0 0 8px; font-size: 14px; }
+            .qOptions { margin: 0; padding-left: 20px; }
+            .qOptions li { margin: 4px 0; }
+          </style>
+        </head>
+        <body>
+          <h1>${escapeHtml(activeSet.title)} — Quiz Questions</h1>
+          <div class="meta">${activeSet.questions.length} questions • Generated ${escapeHtml(generatedAt)}</div>
+          ${questionBlocks}
+          <script>
+            window.addEventListener("load", function () {
+              window.print();
+            });
+          </script>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      setError("Unable to open print dialog. Please allow pop-ups and try again.");
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+  }
+
   // Read the configured count/mins for displaying in the HUD.
   const count = activeSet?.questions?.length || getIntParam("count", 10);
   const mins = getIntParam("mins", count);
@@ -396,6 +484,14 @@ export default function CBTRoom() {
         </div>
 
         <div className="cbtHudRight">
+          <button
+            className="cbtExportBtn"
+            type="button"
+            onClick={exportQuestionsAsPdf}
+          >
+            Export as PDF
+          </button>
+
           {/* Surface any generation/runtime error messages */}
           {error && <div className="cbtError">{error}</div>}
         </div>
