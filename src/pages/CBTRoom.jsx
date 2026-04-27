@@ -27,17 +27,6 @@ function getIntParam(name, fallback) {
   return Number.isFinite(v) && v > 0 ? Math.floor(v) : fallback;
 }
 
-/**
- * Escapes text for safe interpolation into a printable HTML template.
- */
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
 // ------------------------------------------------
 
 /**
@@ -366,8 +355,7 @@ export default function CBTRoom() {
   }
 
   /**
-   * Opens a print-friendly page containing the active question set and triggers
-   * the browser's print flow so the user can "Save as PDF".
+   * Generates a real PDF file client-side and downloads it directly.
    */
   function exportQuestionsAsPdf() {
     if (!activeSet?.questions?.length) {
@@ -375,70 +363,128 @@ export default function CBTRoom() {
       return;
     }
 
-    const now = new Date();
-    const generatedAt = now.toLocaleString();
-    const slug = activeSet.title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-    const fileName = `${slug || "quiz"}-questions-${now.toISOString().slice(0, 10)}.pdf`;
+    try {
+      const now = new Date();
+      const generatedAt = now.toLocaleString();
+      const slug = activeSet.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      const fileName = `${slug || "quiz"}-questions-${now.toISOString().slice(0, 10)}.pdf`;
+      const sanitize = (value) =>
+        String(value ?? "")
+          .replaceAll(/\s+/g, " ")
+          .trim();
+      const escapePdf = (value) =>
+        sanitize(value)
+          .replaceAll("\\", "\\\\")
+          .replaceAll("(", "\\(")
+          .replaceAll(")", "\\)")
+          .replaceAll(/[^\x20-\x7E]/g, "?");
+      const wrapText = (text, maxChars) => {
+        const words = sanitize(text).split(" ");
+        const lines = [];
+        let current = "";
+        for (const word of words) {
+          const test = current ? `${current} ${word}` : word;
+          if (test.length <= maxChars) {
+            current = test;
+          } else if (current) {
+            lines.push(current);
+            current = word;
+          } else {
+            lines.push(word.slice(0, maxChars));
+            current = word.slice(maxChars);
+          }
+        }
+        if (current) lines.push(current);
+        return lines.length ? lines : [""];
+      };
 
-    const questionBlocks = activeSet.questions
-      .map((q, idx) => {
-        const options = (q.options || [])
-          .map((opt) => `<li>${escapeHtml(opt)}</li>`)
-          .join("");
+      const lines = [];
+      lines.push(...wrapText(`${activeSet.title} - Quiz Questions`, 90));
+      lines.push(`${activeSet.questions.length} questions | Generated ${generatedAt}`);
+      lines.push("");
 
-        return `
-          <article class="qCard">
-            <h3>Question ${idx + 1}</h3>
-            <p>${escapeHtml(q.prompt)}</p>
-            <ol type="A" class="qOptions">${options}</ol>
-          </article>
-        `;
-      })
-      .join("");
+      for (const [idx, q] of activeSet.questions.entries()) {
+        lines.push(...wrapText(`Question ${idx + 1}`, 90));
+        lines.push(...wrapText(q.prompt || "", 90));
+        for (const [optIdx, opt] of (q.options || []).entries()) {
+          const label = `${String.fromCharCode(65 + optIdx)}. ${opt || ""}`;
+          lines.push(...wrapText(label, 88));
+        }
+        lines.push("");
+      }
 
-    const printHtml = `
-      <!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>${escapeHtml(fileName)}</title>
-          <style>
-            @page { margin: 16mm; }
-            body { font-family: Inter, Arial, sans-serif; color: #111; line-height: 1.45; margin: 0; }
-            h1 { margin: 0 0 8px; font-size: 22px; }
-            .meta { margin-bottom: 18px; color: #444; font-size: 13px; }
-            .qCard { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ddd; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
-            .qCard h3 { margin: 0 0 8px; font-size: 15px; }
-            .qCard p { margin: 0 0 8px; font-size: 14px; }
-            .qOptions { margin: 0; padding-left: 20px; }
-            .qOptions li { margin: 4px 0; }
-          </style>
-        </head>
-        <body>
-          <h1>${escapeHtml(activeSet.title)} — Quiz Questions</h1>
-          <div class="meta">${activeSet.questions.length} questions • Generated ${escapeHtml(generatedAt)}</div>
-          ${questionBlocks}
-          <script>
-            window.addEventListener("load", function () {
-              window.print();
-            });
-          </script>
-        </body>
-      </html>
-    `;
+      const linesPerPage = 48;
+      const pageChunks = [];
+      for (let i = 0; i < lines.length; i += linesPerPage) {
+        pageChunks.push(lines.slice(i, i + linesPerPage));
+      }
 
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) {
-      setError("Unable to open print dialog. Please allow pop-ups and try again.");
-      return;
+      const objects = [];
+      objects.push("<< /Type /Catalog /Pages 2 0 R >>"); // 1
+      objects.push("<< /Type /Pages /Kids [] /Count 0 >>"); // 2 placeholder
+      objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"); // 3
+
+      const pageObjectIds = [];
+      for (const chunk of pageChunks) {
+        const contentLines = chunk.map((line) => `(${escapePdf(line)}) Tj T*`).join("\n");
+        const stream = `BT
+/F1 11 Tf
+50 792 Td
+14 TL
+${contentLines}
+ET`;
+        const contentObjId = objects.length + 1;
+        objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+
+        const pageObjId = objects.length + 1;
+        pageObjectIds.push(pageObjId);
+        objects.push(
+          `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentObjId} 0 R >>`,
+        );
+      }
+
+      objects[1] = `<< /Type /Pages /Kids [${pageObjectIds
+        .map((id) => `${id} 0 R`)
+        .join(" ")}] /Count ${pageObjectIds.length} >>`;
+
+      let pdfText = "%PDF-1.4\n";
+      const offsets = [0];
+      for (let i = 0; i < objects.length; i += 1) {
+        offsets.push(pdfText.length);
+        pdfText += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`;
+      }
+
+      const xrefOffset = pdfText.length;
+      pdfText += `xref
+0 ${objects.length + 1}
+0000000000 65535 f 
+`;
+      for (let i = 1; i < offsets.length; i += 1) {
+        pdfText += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
+      }
+      pdfText += `trailer
+<< /Size ${objects.length + 1} /Root 1 0 R >>
+startxref
+${xrefOffset}
+%%EOF`;
+
+      const pdfBytes = new TextEncoder().encode(pdfText);
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to export PDF", err);
+      setError("Could not export PDF automatically. Please try again.");
     }
-
-    printWindow.document.open();
-    printWindow.document.write(printHtml);
-    printWindow.document.close();
   }
 
   // Read the configured count/mins for displaying in the HUD.
