@@ -231,6 +231,14 @@ export default function CBTRoom() {
         return [];
       }
 
+      // Ensure the backend returns exactly the amount requested so UI and quiz flow stay consistent.
+      if (questions.length !== count) {
+        setError(
+          `Expected ${count} questions, but got ${questions.length}. Please try again.`,
+        );
+        return [];
+      }
+
       // Minimal validation of expected question format.
       const looksValid = questions.every(
         (q) =>
@@ -294,6 +302,15 @@ export default function CBTRoom() {
     startedRef.current = key;
 
     (async () => {
+      // Clear any previous in-progress attempt so stale questions are never shown
+      // if this generation fails.
+      setActiveSetId(null);
+      setCurrentIndex(0);
+      setSelectedAnswer(null);
+      setAttemptAnswers({});
+      setScore(0);
+      setShowResult(false);
+
       const questions = await generateWithAI(setId, count);
       if (!questions.length) return;
       const actualCount = questions.length;
@@ -317,6 +334,14 @@ export default function CBTRoom() {
 
     const count = getIntParam("count", 10);
     const mins = getIntParam("mins", count);
+
+    // Clear old attempt UI first to avoid showing stale counts/questions while regenerating.
+    setActiveSetId(null);
+    setCurrentIndex(0);
+    setSelectedAnswer(null);
+    setAttemptAnswers({});
+    setScore(0);
+    setShowResult(false);
 
     const questions = await generateWithAI(activeSetId, count);
     if (!questions.length) return;
