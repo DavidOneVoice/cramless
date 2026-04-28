@@ -27,6 +27,48 @@ function getIntParam(name, fallback) {
   return Number.isFinite(v) && v > 0 ? Math.floor(v) : fallback;
 }
 
+/**
+ * Normalizes backend question payloads into the frontend shape:
+ * { id, prompt, options[4], answer, explanation }.
+ *
+ * Supports both:
+ * - answer: "option text"
+ * - answerIndex: number (0..3)
+ */
+function normalizeGeneratedQuestions(rawQuestions) {
+  if (!Array.isArray(rawQuestions)) return [];
+
+  return rawQuestions
+    .map((q) => {
+      if (!q || typeof q.prompt !== "string") return null;
+
+      const options = Array.isArray(q.options)
+        ? q.options.map((opt) => String(opt ?? "").trim())
+        : [];
+      if (options.length !== 4 || options.some((opt) => !opt)) return null;
+
+      let answer = "";
+      if (typeof q.answer === "string" && q.answer.trim()) {
+        answer = q.answer.trim();
+      } else if (Number.isInteger(q.answerIndex) && q.answerIndex >= 0 && q.answerIndex <= 3) {
+        answer = options[q.answerIndex];
+      }
+
+      if (!answer) return null;
+      if (!options.includes(answer)) return null;
+
+      return {
+        id: q.id || crypto.randomUUID(),
+        prompt: q.prompt.trim(),
+        options,
+        answer,
+        explanation:
+          typeof q.explanation === "string" ? q.explanation.trim() : "",
+      };
+    })
+    .filter(Boolean);
+}
+
 // ------------------------------------------------
 
 /**
@@ -226,34 +268,20 @@ export default function CBTRoom() {
         return [];
       }
 
-      const questions = Array.isArray(data.questions) ? data.questions : [];
+      const questions = normalizeGeneratedQuestions(data.questions);
       if (!questions.length) {
-        setError("AI returned no questions. Try uploading more material.");
-        return [];
-      }
-
-      // Allow partial results as long as we have enough questions for a meaningful attempt.
-      // (AI output can occasionally undershoot the requested count.)
-      if (questions.length < 3) {
         setError(
-          `Expected ${count} questions, but got ${questions.length}. Please try again.`,
+          "AI returned no valid questions in a usable format. Please try again.",
         );
         return [];
       }
 
-      // Minimal validation of expected question format.
-      const looksValid = questions.every(
-        (q) =>
-          q &&
-          typeof q.prompt === "string" &&
-          Array.isArray(q.options) &&
-          q.options.length === 4 &&
-          typeof q.answer === "string",
-      );
-
-      if (!looksValid) {
-        setError("AI returned questions in an unexpected format. Try again.");
-        return [];
+      // Allow partial results so users can still practice even when the AI undershoots.
+      const isPartial = questions.length < count;
+      if (isPartial) {
+        setError(
+          `Requested ${count} questions, but received ${questions.length}. Starting quiz with available questions.`,
+        );
       }
 
       // Store generated questions + prompt history back into the set.
@@ -275,7 +303,7 @@ export default function CBTRoom() {
         }),
       }));
 
-      setError("");
+      if (!isPartial) setError("");
       return questions;
     } catch (err) {
       console.error(err);
