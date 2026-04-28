@@ -33,7 +33,7 @@ function normalizeText(s = "") {
   return String(s).replace(/\s+/g, " ").trim();
 }
 
-function capTextEvenly(text, maxChars) {
+function _capTextEvenly(text, maxChars) {
   const t = normalizeText(text);
   if (t.length <= maxChars) return { text: t, truncated: false };
 
