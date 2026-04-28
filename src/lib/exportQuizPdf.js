@@ -6,8 +6,36 @@ const LINE_HEIGHT = 16;
 const MAX_CHARS_PER_LINE = 90;
 const LINES_PER_PAGE = Math.floor((PAGE_HEIGHT - MARGIN * 2) / LINE_HEIGHT);
 
+/**
+ * Built-in Helvetica in our handcrafted PDF only supports WinAnsi characters.
+ * Replace common Unicode symbols (especially set-notation symbols) with
+ * readable ASCII fallbacks so exported files do not show garbled glyphs.
+ */
+function normalizeForPdf(text) {
+  return String(text ?? "")
+    .normalize("NFKC")
+    .replace(/∩/g, " n ")
+    .replace(/∪/g, " U ")
+    .replace(/∅/g, "empty set")
+    .replace(/⊂/g, " subset of ")
+    .replace(/⊆/g, " subseteq ")
+    .replace(/⊃/g, " superset of ")
+    .replace(/⊇/g, " superseteq ")
+    .replace(/∈/g, " in ")
+    .replace(/∉/g, " not in ")
+    .replace(/∀/g, "for all ")
+    .replace(/∃/g, "there exists ")
+    .replace(/⇒/g, " => ")
+    .replace(/⇔/g, " <=> ")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[–—]/g, "-")
+    .replace(/\u00A0/g, " ")
+    .replace(/[^\x20-\x7E\n]/g, "?");
+}
+
 function pdfEscape(text) {
-  return String(text)
+  return normalizeForPdf(text)
     .replace(/\\/g, "\\\\")
     .replace(/\(/g, "\\(")
     .replace(/\)/g, "\\)");
@@ -100,7 +128,7 @@ function buildPageContent(lines) {
   return contentParts.join("\n");
 }
 
-function createPdfString(pageContentStreams) {
+function createPdfBytes(pageContentStreams) {
   const PAGE_TREE_ID = 2;
   const FONT_ID = 3;
   const FIRST_DYNAMIC_ID = 4;
@@ -158,7 +186,7 @@ function createPdfString(pageContentStreams) {
   pdf += `${xrefStart}\n`;
   pdf += "%%EOF";
 
-  return pdf;
+  return new TextEncoder().encode(pdf);
 }
 
 export function downloadQuizQuestionsPdf({ title, questions }) {
@@ -168,8 +196,8 @@ export function downloadQuizQuestionsPdf({ title, questions }) {
   const wrappedLines = buildWrappedLines(lines);
   const pages = chunkIntoPages(wrappedLines);
   const pageContents = pages.map((pageLines) => buildPageContent(pageLines));
-  const pdfString = createPdfString(pageContents);
-  const blob = new Blob([pdfString], { type: "application/pdf" });
+  const pdfBytes = createPdfBytes(pageContents);
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
 
   const safeTitle = String(title || "quiz")
     .trim()
