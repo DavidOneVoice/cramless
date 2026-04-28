@@ -215,6 +215,7 @@
 @media (max-width: 700px) {
   .cbtHud {
     justify-content: flex-start;
+    position: static;
   }
 
   .cbtHudRight {
@@ -224,7 +225,4 @@
 }
 
 @media (max-width: 520px) {
-  .cbtHud {
-    top: 58px;
-  }
 }
