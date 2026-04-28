@@ -212,6 +212,17 @@
 }
 
 /* Small screens: keep HUD readable */
+@media (max-width: 700px) {
+  .cbtHud {
+    justify-content: flex-start;
+  }
+
+  .cbtHudRight {
+    width: 100%;
+    justify-items: start;
+  }
+}
+
 @media (max-width: 520px) {
   .cbtHud {
     top: 58px;
