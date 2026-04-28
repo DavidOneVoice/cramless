@@ -4,6 +4,7 @@ const MARGIN = 48;
 const FONT_SIZE = 12;
 const LINE_HEIGHT = 16;
 const MAX_CHARS_PER_LINE = 90;
+const LINES_PER_PAGE = Math.floor((PAGE_HEIGHT - MARGIN * 2) / LINE_HEIGHT);
 
 function pdfEscape(text) {
   return String(text)
@@ -65,43 +66,75 @@ function buildQuestionLines({ title, questions }) {
   return lines;
 }
 
-function linesToPdfContent(lines) {
-  const contentParts = [];
-  let y = PAGE_HEIGHT - MARGIN;
-
-  contentParts.push("BT");
-  contentParts.push(`/F1 ${FONT_SIZE} Tf`);
+function buildWrappedLines(lines) {
+  const wrappedLines = [];
 
   for (const rawLine of lines) {
-    const wrapped = wrapText(rawLine);
+    wrappedLines.push(...wrapText(rawLine));
+  }
 
-    for (const line of wrapped) {
-      if (y < MARGIN) {
-        contentParts.push("ET");
-        contentParts.push("BT");
-        contentParts.push(`/F1 ${FONT_SIZE} Tf`);
-        y = PAGE_HEIGHT - MARGIN;
-      }
+  return wrappedLines;
+}
 
-      contentParts.push(`1 0 0 1 ${MARGIN} ${y.toFixed(2)} Tm`);
-      contentParts.push(`(${pdfEscape(line)}) Tj`);
-      y -= LINE_HEIGHT;
-    }
+function chunkIntoPages(lines) {
+  const pages = [];
+
+  for (let i = 0; i < lines.length; i += LINES_PER_PAGE) {
+    pages.push(lines.slice(i, i + LINES_PER_PAGE));
+  }
+
+  return pages.length ? pages : [[""]];
+}
+
+function buildPageContent(lines) {
+  const contentParts = ["BT", `/F1 ${FONT_SIZE} Tf`];
+  let y = PAGE_HEIGHT - MARGIN;
+
+  for (const line of lines) {
+    contentParts.push(`1 0 0 1 ${MARGIN} ${y.toFixed(2)} Tm`);
+    contentParts.push(`(${pdfEscape(line)}) Tj`);
+    y -= LINE_HEIGHT;
   }
 
   contentParts.push("ET");
-
   return contentParts.join("\n");
 }
 
-function createPdfString(contentStream) {
-  const objects = [
-    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-    "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-    `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`,
-    "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-    `5 0 obj\n<< /Length ${contentStream.length} >>\nstream\n${contentStream}\nendstream\nendobj\n`,
-  ];
+function createPdfString(pageContentStreams) {
+  const PAGE_TREE_ID = 2;
+  const FONT_ID = 3;
+  const FIRST_DYNAMIC_ID = 4;
+  const pageCount = pageContentStreams.length;
+  const pageObjectIds = [];
+  const contentObjectIds = [];
+
+  for (let i = 0; i < pageCount; i += 1) {
+    pageObjectIds.push(FIRST_DYNAMIC_ID + i * 2);
+    contentObjectIds.push(FIRST_DYNAMIC_ID + i * 2 + 1);
+  }
+
+  const kids = pageObjectIds.map((id) => `${id} 0 R`).join(" ");
+  const objects = [];
+
+  objects.push("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+  objects.push(
+    `${PAGE_TREE_ID} 0 obj\n<< /Type /Pages /Kids [${kids}] /Count ${pageCount} >>\nendobj\n`,
+  );
+  objects.push(
+    `${FONT_ID} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n`,
+  );
+
+  pageObjectIds.forEach((pageId, i) => {
+    const contentId = contentObjectIds[i];
+    const contentStream = pageContentStreams[i];
+
+    objects.push(
+      `${pageId} 0 obj\n<< /Type /Page /Parent ${PAGE_TREE_ID} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${FONT_ID} 0 R >> >> /Contents ${contentId} 0 R >>\nendobj\n`,
+    );
+    objects.push(
+      `${contentId} 0 obj\n<< /Length ${contentStream.length} >>\nstream\n${contentStream}\nendstream\nendobj\n`,
+    );
+  });
 
   let pdf = "%PDF-1.4\n";
   const offsets = [0];
@@ -132,8 +165,10 @@ export function downloadQuizQuestionsPdf({ title, questions }) {
   if (!Array.isArray(questions) || !questions.length) return;
 
   const lines = buildQuestionLines({ title, questions });
-  const content = linesToPdfContent(lines);
-  const pdfString = createPdfString(content);
+  const wrappedLines = buildWrappedLines(lines);
+  const pages = chunkIntoPages(wrappedLines);
+  const pageContents = pages.map((pageLines) => buildPageContent(pageLines));
+  const pdfString = createPdfString(pageContents);
   const blob = new Blob([pdfString], { type: "application/pdf" });
 
   const safeTitle = String(title || "quiz")
