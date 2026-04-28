@@ -3,6 +3,7 @@ import { loadState, saveState } from "../lib/storage";
 import { useCountdown } from "../hooks/useCountdown";
 import PracticeMode from "../components/quiz/PracticeMode";
 import { API_BASE } from "../lib/api";
+import { downloadQuizQuestionsPdf } from "../lib/exportQuizPdf";
 import "./CBTRoom.css";
 
 function getQueryParam(name) {
@@ -106,6 +107,22 @@ export default function CBTRoom() {
 
     setCurrentIndex(safeIndex);
     setSelectedAnswer(null);
+  }
+
+
+
+  function handleExportPdf() {
+    if (!activeSet?.questions?.length) {
+      setError("No questions available yet to export.");
+      return;
+    }
+
+    downloadQuizQuestionsPdf({
+      title: activeSet.title,
+      questions: activeSet.questions,
+    });
+
+    setError("");
   }
 
   const score = useMemo(() => {
@@ -367,6 +384,16 @@ export default function CBTRoom() {
         </div>
 
         <div className="cbtHudRight">
+          <button
+            className="cbtExportBtn"
+            type="button"
+            onClick={handleExportPdf}
+            disabled={generating || !activeSet?.questions?.length}
+            title="Download generated questions as PDF"
+          >
+            Export Questions (PDF)
+          </button>
+
           {error && <div className="cbtError">{error}</div>}
         </div>
       </section>
