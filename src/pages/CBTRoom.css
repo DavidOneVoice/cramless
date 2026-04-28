@@ -187,6 +187,13 @@
   box-shadow: var(--focus);
 }
 
+.cbtExportBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+}
+
 .cbtError {
   padding: 10px 12px;
   border-radius: 14px;
