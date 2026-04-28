@@ -109,8 +109,6 @@ export default function CBTRoom() {
     setSelectedAnswer(null);
   }
 
-
-
   function handleExportPdf() {
     if (!activeSet?.questions?.length) {
       setError("No questions available yet to export.");
@@ -178,11 +176,6 @@ export default function CBTRoom() {
     try {
       setGenerating(true);
       setError("");
-
-      console.log("QUIZ sourceText length:", target.sourceText?.length || 0);
-      console.log("Requested count:", count);
-      console.log("API_BASE:", API_BASE);
-      console.log("MCQ endpoint:", `${API_BASE}/api/generate-mcqs`);
 
       const r = await fetch(`${API_BASE}/api/generate-mcqs`, {
         method: "POST",
